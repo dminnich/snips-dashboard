@@ -32,13 +32,8 @@ describe('MonthBlock', () => {
     expect(screen.getByText('Birthday')).toBeInTheDocument()
   })
 
-  it('shows edit hint in admin mode', () => {
+  it('shows edit icon in admin mode', () => {
     render(<MonthBlock month={baseMonth} isAdmin />)
-    expect(screen.getByText('Click to edit')).toBeInTheDocument()
-  })
-
-  it('does not show edit hint in read-only mode', () => {
-    render(<MonthBlock month={baseMonth} />)
-    expect(screen.queryByText('Click to edit')).not.toBeInTheDocument()
+    expect(screen.getByText('✎')).toBeInTheDocument()
   })
 })

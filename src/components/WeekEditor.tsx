@@ -11,8 +11,8 @@ interface WeekEditorProps {
 }
 
 export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
-  const [subtitle, setSubtitle] = useState('')
-  const [specialEvents, setSpecialEvents] = useState('')
+  const [subtitle, setSubtitle] = useState(week?.subtitle ?? '')
+  const [specialEvents, setSpecialEvents] = useState(week?.specialEvents ?? '')
 
   const handleSave = () => {
     if (!week) return

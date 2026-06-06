@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { MonthBlock } from './MonthBlock'
 import { WeekGrid } from './WeekGrid'
 import { Legend } from './Legend'
@@ -19,6 +19,7 @@ export function Dashboard() {
   const [editWeek, setEditWeek] = useState<WeekData | null>(null)
   const [editEvent, setEditEvent] = useState<{ event: EventCard | null; weekId: string } | null>(null)
   const [newEventKey, setNewEventKey] = useState(0)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleEditMonth(id: string) {
     const m = months.find((m) => m.id === id)
@@ -70,29 +71,6 @@ export function Dashboard() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-(--bg) text-(--text)">
-      {isAdmin && (
-        <div className="absolute left-2 top-2 z-10 flex flex-wrap gap-2">
-          <button
-            className="rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)"
-            onClick={() => {
-              const json = toolbar.exportData()
-              navigator.clipboard.writeText(json)
-            }}
-          >
-            Export JSON
-          </button>
-          <button
-            className="rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)"
-            onClick={() => {
-              const json = prompt('Paste JSON data:')
-              if (json) toolbar.importData(json)
-            }}
-          >
-            Import JSON
-          </button>
-        </div>
-      )}
-
       <div className="flex flex-1 gap-3 overflow-hidden p-3">
         <div className="flex w-[20%] flex-col gap-3">
           {leftMonths.map((month) => (
@@ -129,7 +107,36 @@ export function Dashboard() {
         </div>
       </div>
 
-      <Legend />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file) return
+          const reader = new FileReader()
+          reader.onload = () => {
+            if (typeof reader.result === 'string') toolbar.importData(reader.result)
+          }
+          reader.readAsText(file)
+          e.target.value = ''
+        }}
+      />
+      <Legend
+        isAdmin={isAdmin}
+        onExport={() => {
+          const json = toolbar.exportData()
+          const blob = new Blob([json], { type: 'application/json' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'dashboard-data.json'
+          a.click()
+          URL.revokeObjectURL(url)
+        }}
+        onImport={() => fileInputRef.current?.click()}
+      />
 
       <div className="absolute bottom-2 right-2 flex gap-2">
         <button
@@ -149,14 +156,14 @@ export function Dashboard() {
       {isAdmin && (
         <>
           <MonthEditor
-            key={editMonth?.id ?? 'none'}
+            key={editMonth?.id ?? 'month-none'}
             month={editMonth}
             open={editMonth !== null}
             onSave={updateMonth}
             onClose={() => setEditMonth(null)}
           />
           <WeekEditor
-            key={editWeek?.id ?? 'none'}
+            key={editWeek?.id ?? 'week-none'}
             week={editWeek}
             open={editWeek !== null}
             onSave={updateWeek}

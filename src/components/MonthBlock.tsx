@@ -29,15 +29,10 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
         {month.content && (
           <div className="text-(--text)" dangerouslySetInnerHTML={{ __html: month.content }} />
         )}
-        {month.specialEvents && (
-          <div className="mt-auto text-xs text-(--text-muted)" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />
-        )}
-        {isAdmin && (
-          <div className="mt-auto text-center text-xs text-(--text-muted) opacity-0 hover:opacity-100">
-            Click to edit
-          </div>
-        )}
       </div>
+      {month.specialEvents && (
+        <div className="px-2 pb-2 text-[10px] text-(--text-muted)" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />
+      )}
     </div>
   )
 }

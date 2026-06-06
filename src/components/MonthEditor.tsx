@@ -11,9 +11,9 @@ interface MonthEditorProps {
 }
 
 export function MonthEditor({ month, open, onSave, onClose }: MonthEditorProps) {
-  const [content, setContent] = useState('')
-  const [subtitle, setSubtitle] = useState('')
-  const [specialEvents, setSpecialEvents] = useState('')
+  const [content, setContent] = useState(month?.content ?? '')
+  const [subtitle, setSubtitle] = useState(month?.subtitle ?? '')
+  const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? '')
 
   const handleSave = () => {
     if (!month) return

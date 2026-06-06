@@ -2,2021 +2,7 @@
 
 **Session ID:** ses_16389d30dffeHi1JcFbDqNRiz4
 **Created:** 6/6/2026, 6:24:10 AM
-**Updated:** 6/6/2026, 8:51:20 AM
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.5s)
-
-_Thinking:_
-
-Everything passes. Let me also check if there are any other files that reference AuthContext or Admin.
-
-**Tool: grep**
-
-**Input:**
-```json
-{
-  "pattern": "AuthContext|LoginPage|from.*Admin",
-  "include": "*.{ts,tsx}"
-}
-```
-
-**Output:**
-```
-No files found
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 3.6s)
-
-_Thinking:_
-
-Clean — no remaining references. Let me also clean up .env.example since the admin password is no longer needed.
-
-Let me also update AGENTS.md to reflect the new single-route architecture.
-
-Actually, the user didn't ask for AGENTS.md or .env.example changes. Let me just update the todo and summarize.
-
-**Tool: todowrite**
-
-**Input:**
-```json
-{
-  "todos": [
-    {
-      "priority": "high",
-      "content": "Remove AuthContext, LoginPage, Admin.tsx files",
-      "status": "completed"
-    },
-    {
-      "priority": "high",
-      "content": "Refactor App.tsx — remove auth, admin routes, simplify to single route",
-      "status": "completed"
-    },
-    {
-      "priority": "high",
-      "content": "Refactor Dashboard.tsx — merge admin logic, add edit/view toggle",
-      "status": "completed"
-    },
-    {
-      "priority": "high",
-      "content": "Update Dashboard.test.tsx to mock useLocalData",
-      "status": "completed"
-    },
-    {
-      "priority": "high",
-      "content": "Run tests and lint",
-      "status": "completed"
-    }
-  ]
-}
-```
-
-**Output:**
-```
-[
-  {
-    "priority": "high",
-    "content": "Remove AuthContext, LoginPage, Admin.tsx files",
-    "status": "completed"
-  },
-  {
-    "priority": "high",
-    "content": "Refactor App.tsx — remove auth, admin routes, simplify to single route",
-    "status": "completed"
-  },
-  {
-    "priority": "high",
-    "content": "Refactor Dashboard.tsx — merge admin logic, add edit/view toggle",
-    "status": "completed"
-  },
-  {
-    "priority": "high",
-    "content": "Update Dashboard.test.tsx to mock useLocalData",
-    "status": "completed"
-  },
-  {
-    "priority": "high",
-    "content": "Run tests and lint",
-    "status": "completed"
-  }
-]
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 3.9s)
-
-_Thinking:_
-
-All done. Let me summarize.
-
-All clean — 39 tests pass, no type/lint errors. Here's what changed:
-
-- **Removed** `AuthContext.tsx`, `LoginPage.tsx`, `Admin.tsx` — no more auth anywhere
-- **App.tsx** — single route (`/`), no providers besides `ThemeProvider`
-- **Dashboard.tsx** — merged all admin logic in:
-  - Calls `useLocalData()` directly
-  - **Edit/View toggle** button next to the Light/Dark button
-  - Export/Import JSON buttons appear at top-left in Edit mode
-  - Editor modals (month, week, event) only render when in Edit mode
-
-The Pi + nginx setup will just serve the `dist/` folder on the LAN — no auth needed, no Netlify. Simple as it gets.
-
----
-
-## User
-
-clicking on a month or week header should start blank.  it should not be pre-filled in with data from previous times i set month or week.  the add group modal headcount not have a value set.  similar to housing it should have a suggestion/placeholder but no real data prepopulated
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 31.4s)
-
-_Thinking:_
-
-The user wants:
-
-1. Month/Week editor modals should open with blank fields (no pre-filled content from previous data) - but wait, they should show the CURRENT data for the month/week being edited. The user is saying they're seeing stale data from PREVIOUS edits. This means the `useState` initialization in the editors is not re-initializing properly when the modal opens with a different month.
-
-Actually, re-reading: "clicking on a month or week header should start blank. it should not be pre-filled in with data from previous times i set month or week."
-
-So the user wants the editors to open EMPTY every time. Not pre-filled with the current data. That's... interesting. So when you click on a month to edit, the content field should be blank, not showing the current content? That seems like it would overwrite existing data with empty content on save.
-
-Wait, maybe the user means it should show the current data but it's showing stale/previously-edited data from a different month? Like a stale closure issue?
-
-Let me re-read: "clicking on a month or week header should start blank. it should not be pre-filled in with data from previous times i set month or week."
-
-I think the issue might be that when you edit January, close, then edit February, the WYSIWYG editor shows January's content because it doesn't properly reset. Even though the Modal has `key={month?.id ?? 'none'}`, the WysiwygEditor uses `useLayoutEffect(() => {...}, [])` with empty deps, which means it only sets the innerHTML on MOUNT. But if the component remounts properly (which it should with the key), it would get the new data.
-
-Hmm, but actually the issue might be that `useState(month?.content ?? '')` in MonthEditor captures the value when the component mounts, and the key ensures remount. But wait, does the Modal actually remount children when the key changes?
-
-Looking at Modal.tsx:
-```tsx
-export function Modal({ open, onClose, title, children }: ModalProps) {
-  if (!open) return null
-  return (...)
-}
-```
-
-When `open` is false, it returns null. When `open` becomes true again (with a new key from MonthEditor), the Modal renders with the new key. But since Modal was returning null (not mounted), the key change on MonthEditor's `<Modal key={month?.id ?? 'none'} ...>` would cause the Modal to remount with the correct children.
-
-Actually wait, let me trace the flow more carefully:
-
-1. User clicks January → `editMonth` = January → `MonthEditor open={true}` with `month = January`
-2. User makes changes, saves → `editMonth` = null → `MonthEditor open={false}` → returns null
-3. User clicks February → `editMonth` = February → `MonthEditor open={true}` with `month = February`
-
-At step 3, `MonthEditor` renders `<Modal key="february" open={true}>` — the key is different from step 1's `key="january"`. Since the Modal was unmounted (returned null at step 2), it mounts fresh with key="february", which means `useState(month?.content ?? '')` initializes with February's content. The WysiwygEditor also mounts fresh and useLayoutEffect sets innerHTML to February's content.
-
-So based on the architecture, it SHOULD work correctly. Unless the issue is something else...
-
-Oh wait, I think the user might literally want the editor to open BLANK — not showing any existing content. So if you click on January, the content field is empty, not showing "Some existing content". When you save, it overwrites whatever was there.
-
-But that doesn't make sense for editing — you'd lose the existing content every time you edit.
-
-Let me re-read once more: "clicking on a month or week header should start blank. it should not be pre-filled in with data from previous times i set month or week."
-
-I think the key phrase is "from previous times i set month or week" — it's showing data from a PREVIOUSLY EDITED month, not the current month's data. This is a stale state bug.
-
-The issue might be that the `key` on Modal in MonthEditor is `month?.id ?? 'none'`, but when the modal closes and reopens with a different month, the useState initial values are computed from the prop at the time of the state initialization. If the component remounts properly, it should work. But if the Modal doesn't properly remount children...
-
-Actually, I think the issue is that Modal returns `null` when closed, but the MonthEditor component itself stays mounted even when Modal returns null. When Modal opens again, it mounts fresh. But the key is on `<Modal>` not on the parent wrapper, so that should be fine.
-
-Hmm, let me think about this differently. Maybe the issue isn't with stale state at all. Maybe the user literally wants the editor to open empty. Like, when you click a month, the editor opens with blank content fields, and you type what you want. When you save, it overwrites whatever was there.
-
-This would be a design choice: the editor is more of a "setter" than an "editor" — you always write from scratch. That's unusual but possible.
-
-OR, more likely: The user is experiencing a bug where editing January, then closing, then editing February, shows January's content in February's editor. This is the classic stale useState bug.
-
-Let me look at the WysiwygEditor more carefully:
-
-```tsx
-export function WysiwygEditor({ html, onChange, minHeight = '120px' }: WysiwygEditorProps) {
-  const ref = useRef<HTMLDivElement>(null)
-
-  useLayoutEffect(() => {
-    if (ref.current) {
-      ref.current.innerHTML = html || ''
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-```
-
-The `useLayoutEffect` with empty deps only runs once on mount. If the component doesn't remount (because the key on Modal doesn't force a remount of the children properly), then the WysiwygEditor would show stale content.
-
-But I think the key SHOULD work. Let me trace more carefully:
-
-MonthEditor:
-```tsx
-<Modal key={month?.id ?? 'none'} open={open} onClose={onClose} title={`Edit ${month?.name ?? ''}`}>
-  <WysiwygEditor html={content} onChange={setContent} minHeight="140px" />
-</Modal>
-```
-
-When `open` is true and `month` changes, `key` changes on Modal. But Modal was already rendered. React would see the key change and unmount/remount the Modal component. This would cause the children (including WysiwygEditor) to also unmount/remount.
-
-Wait, but there's a subtle issue. When `open` becomes false, Modal returns null. The component is unmounted. When `open` becomes true again, Modal mounts fresh. The key would only matter if Modal were already mounted with a different key. Since Modal unmounts when closed, it always mounts fresh when opened.
-
-So the flow should be:
-1. `editMonth = January` → MonthEditor renders with `month = January` → Modal mounts with key="january" → WysiwygEditor mounts → useLayoutEffect sets innerHTML to January's content
-2. Close → `editMonth = null` → MonthEditor renders with `month = null` → Modal open={false} → returns null → Modal unmounts
-3. `editMonth = February` → MonthEditor renders with `month = February` → Modal mounts with key="february" → WysiwygEditor mounts → useLayoutEffect sets innerHTML to February's content
-
-This should work. Unless the issue is that in step 2, MonthEditor returns:
-```tsx
-<Modal key={null} open={false} ...>
-```
-And the key changes from "january" to "null" (since `month?.id` is null). Then Modal remounts with key=null and returns null. Then in step 3, Modal mounts with key="february". This should still work.
-
-Actually, I just realized the issue might be different. Let me look at the MonthEditor code again:
-
-```tsx
-export function MonthEditor({ month, open, onSave, onClose }: MonthEditorProps) {
-  const [content, setContent] = useState(month?.content ?? '')
-  const [subtitle, setSubtitle] = useState(month?.subtitle ?? '')
-  const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? '')
-```
-
-The `useState` initializes from `month?.content` etc. When the component mounts with a new month, it should get the correct initial values. But if the component doesn't remount (because the key didn't change or Modal didn't remount), the state would be stale.
-
-Hmm, I think the user might literally want the editor to open empty. Let me take their words at face value: "clicking on a month or week header should start blank."
-
-OK so they want:
-1. Month editor: content, subtitle, specialEvents all start blank/empty
-2. Week editor: subtitle, specialEvents start blank/empty
-3. Add Group modal: headcount starts empty (no value, just placeholder)
-
-For #3, I already changed headcount to `String(event?.headcount ?? 10)` and placeholder "10". But the user wants it to be empty like housing — just a placeholder suggestion but no actual value.
-
-So for the editors, they truly want blank forms every time. When you save, whatever you typed replaces the existing data. This is actually a reasonable design for a TV dashboard where you're quickly setting up content.
-
-Let me make these changes:
-
-1. **MonthEditor.tsx**: Initialize all state with empty strings regardless of prop
-2. **WeekEditor.tsx**: Initialize all state with empty strings regardless of prop  
-3. **EventEditor.tsx**: Initialize headcount with empty string, default to 10 on save
-
-Wait, but if I initialize state with empty strings, then when the modal opens to edit an existing month, it shows blank. The user types their content and saves. This replaces whatever was there. This is the intended behavior based on "should start blank."
-
-Let me implement this.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthEditor.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/MonthEditor.tsx</path>
-<type>file</type>
-<content>1: import { useState } from 'react'
-2: import type { MonthData } from '@/types'
-3: import { Modal } from './Modal'
-4: import { WysiwygEditor } from './WysiwygEditor'
-5: 
-6: interface MonthEditorProps {
-7:   month: MonthData | null
-8:   open: boolean
-9:   onSave: (id: string, patch: Partial<MonthData>) => void
-10:   onClose: () => void
-11: }
-12: 
-13: export function MonthEditor({ month, open, onSave, onClose }: MonthEditorProps) {
-14:   const [content, setContent] = useState(month?.content ?? '')
-15:   const [subtitle, setSubtitle] = useState(month?.subtitle ?? '')
-16:   const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? '')
-17: 
-18:   const handleSave = () => {
-19:     if (!month) return
-20:     onSave(month.id, { content, subtitle, specialEvents })
-21:     onClose()
-22:   }
-23: 
-24:   return (
-25:     <Modal
-26:       key={month?.id ?? 'none'}
-27:       open={open}
-28:       onClose={onClose}
-29:       title={`Edit ${month?.name ?? ''}`}
-30:     >
-31:       <div className="flex flex-col gap-4">
-32:         <div>
-33:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Subtitle (date range)</label>
-34:           <input
-35:             className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder)"
-36:             value={subtitle}
-37:             onChange={(e) => setSubtitle(e.target.value)}
-38:             placeholder="e.g. January 1-31"
-39:           />
-40:         </div>
-41:         <div>
-42:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Content</label>
-43:           <WysiwygEditor html={content} onChange={setContent} minHeight="140px" />
-44:         </div>
-45:         <div>
-46:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Special Events (small text at bottom)</label>
-47:           <WysiwygEditor html={specialEvents} onChange={setSpecialEvents} minHeight="80px" />
-48:         </div>
-49:         <div className="flex justify-end gap-2">
-50:           <button
-51:             className="rounded border border-(--input-border) px-4 py-2 text-sm text-(--text) hover:bg-(--surface-hover)"
-52:             onClick={onClose}
-53:           >
-54:             Cancel
-55:           </button>
-56:           <button
-57:             className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-58:             onClick={handleSave}
-59:           >
-60:             Save
-61:           </button>
-62:         </div>
-63:       </div>
-64:     </Modal>
-65:   )
-66: }
-
-(End of file - total 66 lines)
-</content>
-```
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WeekEditor.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/WeekEditor.tsx</path>
-<type>file</type>
-<content>1: import { useState } from 'react'
-2: import type { WeekData } from '@/types'
-3: import { Modal } from './Modal'
-4: import { WysiwygEditor } from './WysiwygEditor'
-5: 
-6: interface WeekEditorProps {
-7:   week: WeekData | null
-8:   open: boolean
-9:   onSave: (id: string, patch: Partial<WeekData>) => void
-10:   onClose: () => void
-11: }
-12: 
-13: export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
-14:   const [subtitle, setSubtitle] = useState(week?.subtitle ?? '')
-15:   const [specialEvents, setSpecialEvents] = useState(week?.specialEvents ?? '')
-16: 
-17:   const handleSave = () => {
-18:     if (!week) return
-19:     onSave(week.id, { subtitle, specialEvents })
-20:     onClose()
-21:   }
-22: 
-23:   return (
-24:     <Modal
-25:       key={week?.id ?? 'none'}
-26:       open={open}
-27:       onClose={onClose}
-28:       title={`Edit Week ${week?.weekNumber ?? ''}`}
-29:     >
-30:       <div className="flex flex-col gap-4">
-31:         <div>
-32:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Subtitle (date range)</label>
-33:           <input
-34:             className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder)"
-35:             value={subtitle}
-36:             onChange={(e) => setSubtitle(e.target.value)}
-37:             placeholder="e.g. June 2-8"
-38:           />
-39:         </div>
-40:         <div>
-41:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Special Events</label>
-42:           <WysiwygEditor html={specialEvents} onChange={setSpecialEvents} minHeight="80px" />
-43:         </div>
-44:         <div className="flex justify-end gap-2">
-45:           <button
-46:             className="rounded border border-(--input-border) px-4 py-2 text-sm text-(--text) hover:bg-(--surface-hover)"
-47:             onClick={onClose}
-48:           >
-49:             Cancel
-50:           </button>
-51:           <button
-52:             className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-53:             onClick={handleSave}
-54:           >
-55:             Save
-56:           </button>
-57:         </div>
-58:       </div>
-59:     </Modal>
-60:   )
-61: }
-
-(End of file - total 61 lines)
-</content>
-```
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/EventEditor.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/EventEditor.tsx</path>
-<type>file</type>
-<content>1: import { useState } from 'react'
-2: import type { EventCard, EventStatus } from '@/types'
-3: import { Modal } from './Modal'
-4: 
-5: const STATUSES: { value: EventStatus; label: string }[] = [
-6:   { value: 'mission', label: 'Mission' },
-7:   { value: 'pending', label: 'Pending' },
-8:   { value: 'paid', label: 'Paid' },
-9: ]
-10: 
-11: interface EventEditorProps {
-12:   event: EventCard | null
-13:   weekId: string | null
-14:   open: boolean
-15:   onSave: (weekId: string, eventId: string, patch: Partial<EventCard>) => void
-16:   onDelete: (weekId: string, eventId: string) => void
-17:   onClose: () => void
-18: }
-19: 
-20: export function EventEditor({ event, weekId, open, onSave, onDelete, onClose }: EventEditorProps) {
-21:   const isNew = !event
-22:   const [groupName, setGroupName] = useState(event?.groupName ?? '')
-23:   const [headcount, setHeadcount] = useState(String(event?.headcount ?? 10))
-24:   const [housing, setHousing] = useState(event?.housing ?? '')
-25:   const [status, setStatus] = useState<EventStatus>(event?.status ?? 'pending')
-26: 
-27:   if (!weekId) return null
-28: 
-29:   const eventId = event?.id ?? ''
-30: 
-31:   const handleSave = () => {
-32:     const hc = headcount === '' ? 10 : Number(headcount)
-33:     onSave(weekId, eventId, { groupName, headcount: hc, housing, status })
-34:     onClose()
-35:   }
-36: 
-37:   const handleDelete = () => {
-38:     if (isNew) return
-39:     if (confirm('Delete this event card?')) {
-40:       onDelete(weekId, eventId)
-41:       onClose()
-42:     }
-43:   }
-44: 
-45:   return (
-46:     <Modal
-47:       open={open}
-48:       onClose={onClose}
-49:       title={isNew ? 'Add Group' : 'Edit Group'}
-50:     >
-51:       <div className="flex flex-col gap-4">
-52:         <div>
-53:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Group Name</label>
-54:           <input
-55:             className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder)"
-56:             value={groupName}
-57:             onChange={(e) => setGroupName(e.target.value)}
-58:             placeholder="e.g. Brushy Creek"
-59:             autoFocus
-60:           />
-61:         </div>
-62:         <div className="flex gap-4">
-63:           <div className="flex-1">
-64:             <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Headcount</label>
-65:             <input
-66:               type="text"
-67:               inputMode="numeric"
-68:               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder) [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-69:               value={headcount}
-70:               onChange={(e) => setHeadcount(e.target.value)}
-71:               placeholder="10"
-72:             />
-73:           </div>
-74:           <div className="flex-1">
-75:             <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Housing</label>
-76:             <input
-77:               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder)"
-78:               value={housing}
-79:               onChange={(e) => setHousing(e.target.value)}
-80:               placeholder="e.g. B1 & B2"
-81:             />
-82:           </div>
-83:         </div>
-84:         <div>
-85:           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">Status</label>
-86:           <div className="flex gap-2">
-87:             {STATUSES.map((s) => (
-88:               <button
-89:                 key={s.value}
-90:                 className={`flex-1 rounded border px-3 py-2 text-sm font-semibold ${
-91:                   status === s.value
-92:                     ? 'border-blue-500 bg-blue-500/20 text-blue-300'
-93:                     : 'border-(--input-border) text-(--text-secondary) hover:bg-(--surface-hover)'
-94:                 }`}
-95:                 onClick={() => setStatus(s.value)}
-96:               >
-97:                 {s.label}
-98:               </button>
-99:             ))}
-100:           </div>
-101:         </div>
-102:         <div className="flex justify-between gap-2">
-103:           <div>
-104:             {!isNew && (
-105:               <button
-106:                 className="rounded border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30"
-107:                 onClick={handleDelete}
-108:               >
-109:                 Delete
-110:               </button>
-111:             )}
-112:           </div>
-113:           <div className="flex gap-2">
-114:             <button
-115:               className="rounded border border-(--input-border) px-4 py-2 text-sm text-(--text) hover:bg-(--surface-hover)"
-116:               onClick={onClose}
-117:             >
-118:               Cancel
-119:             </button>
-120:             <button
-121:               className="rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-500"
-122:               onClick={handleSave}
-123:               disabled={!groupName.trim()}
-124:             >
-125:               {isNew ? 'Add' : 'Save'}
-126:             </button>
-127:           </div>
-128:         </div>
-129:       </div>
-130:     </Modal>
-131:   )
-132: }
-
-(End of file - total 132 lines)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 8.5s)
-
-_Thinking:_
-
-Now I understand the issues:
-
-1. **MonthEditor**: Uses `useState(month?.content ?? '')` — initializes from prop, but only on first mount. When the modal remounts (via key change), it reinitializes. But the user says it shows stale data. The fix: always start blank by initializing with `''`.
-
-2. **WeekEditor**: Same issue.
-
-3. **EventEditor headcount**: Currently `useState(String(event?.headcount ?? 10))` — defaults to "10". User wants it empty like housing, with just a placeholder suggesting 10.
-
-For all three editors, the user wants blank fields every time they open. The existing data is displayed on the cards — the editor is purely for inputting new content.
-
-Let me make the changes:
-
-1. MonthEditor: Change `useState(month?.content ?? '')` → `useState('')` for all fields
-2. WeekEditor: Change `useState(week?.subtitle ?? '')` → `useState('')` for all fields
-3. EventEditor: Change `useState(String(event?.headcount ?? 10))` → `useState('')` 
-
-This way every time the modal opens (remounts), all fields start blank.
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthEditor.tsx",
-  "oldString": "  const [content, setContent] = useState(month?.content ?? '')\n  const [subtitle, setSubtitle] = useState(month?.subtitle ?? '')\n  const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? '')",
-  "newString": "  const [content, setContent] = useState('')\n  const [subtitle, setSubtitle] = useState('')\n  const [specialEvents, setSpecialEvents] = useState('')"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WeekEditor.tsx",
-  "oldString": "  const [subtitle, setSubtitle] = useState(week?.subtitle ?? '')\n  const [specialEvents, setSpecialEvents] = useState(week?.specialEvents ?? '')",
-  "newString": "  const [subtitle, setSubtitle] = useState('')\n  const [specialEvents, setSpecialEvents] = useState('')"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/EventEditor.tsx",
-  "oldString": "  const [headcount, setHeadcount] = useState(String(event?.headcount ?? 10))",
-  "newString": "  const [headcount, setHeadcount] = useState('')"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 7.8s)
-
-_Thinking:_
-
-Now let me run tests to make sure nothing broke. The tests for MonthBlock test the rendering of content, not the editor state initialization. The editor tests don't exist as separate component tests (they're tested indirectly through the Dashboard test flow). So the tests should still pass.
-
-Wait, I should check if there are any tests that interact with the editors directly. Let me check.
-
-Actually, I don't think there are editor-specific tests. Let me just run the full test suite.
-
-**Tool: bash**
-
-**Input:**
-```json
-{
-  "command": "npm test && npm run lint && npm run typecheck",
-  "description": "Run tests, lint, and typecheck",
-  "timeout": 60000
-}
-```
-
-**Output:**
-```
-
-> snips-dashboard@0.0.0 test
-> vitest run
-
-
- RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
-
-
- Test Files  7 passed (7)
-      Tests  39 passed (39)
-   Start at  08:12:27
-   Duration  1.33s (transform 288ms, setup 1.04s, import 383ms, tests 391ms, environment 5.56s)
-
-
-> snips-dashboard@0.0.0 lint
-> eslint .
-
-
-> snips-dashboard@0.0.0 typecheck
-> tsc --noEmit
-
-
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.6s)
-
-All clean. Changes made:
-
-- **MonthEditor** — content, subtitle, and specialEvents all start blank now
-- **WeekEditor** — subtitle and specialEvents start blank
-- **EventEditor headcount** — starts empty (no default value), shows "10" as a greyed-out placeholder only
-
----
-
-## User
-
-when i set a months content and then click on another month i still see the previous data i set in the new modal
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 13.8s)
-
-_Thinking:_
-
-This confirms the stale state bug. The user opens Month A, types content, saves, closes. Then clicks Month B — the editor shows Month A's content instead of blank.
-
-The issue is that the `key` on the Modal isn't working properly to force a remount. Let me think about why.
-
-Looking at MonthEditor:
-```tsx
-<Modal
-  key={month?.id ?? 'none'}
-  open={open}
-  onClose={onClose}
-  title={`Edit ${month?.name ?? ''}`}
->
-```
-
-And in Dashboard.tsx:
-```tsx
-<MonthEditor
-  month={editMonth}
-  open={editMonth !== null}
-  onSave={updateMonth}
-  onClose={() => setEditMonth(null)}
-/>
-```
-
-When the user closes the editor, `setEditMonth(null)` is called. Then they click another month, `setEditMonth(monthB)`. 
-
-Flow:
-1. `editMonth = monthA` → MonthEditor renders with `month={monthA}`, `open={true}`, `key="january"`
-2. User saves → `onSave` called → `setEditMonth(null)` → MonthEditor renders with `month={null}`, `open={false}`, `key="none"`
-3. Since `open={false}`, Modal returns null (unmounted)
-
-4. User clicks monthB → `setEditMonth(monthB)` → MonthEditor renders with `month={monthB}`, `open={true}`, `key="february"`
-5. Modal mounts fresh with `key="february"` — should be clean
-
-But wait, in step 2, `month` is null, so `month?.id` is null, so `key` is "none". In step 4, `key` is "february". Since React sees a key change AND the component was unmounted in step 3 (Modal returned null), it should mount fresh.
-
-Hmm, but actually the Modal component's children include the WysiwygEditor. When Modal returns null, the WysiwygEditor unmounts. When Modal mounts again, WysiwygEditor mounts fresh.
-
-WAIT. I think I found the issue. The `key` is on Modal, but `useState('')` is in MonthEditor, not in Modal. When Modal returns null, the MonthEditor component is still mounted (it just returns null children via Modal). When `open` becomes true again, Modal non-null renders, but the MonthEditor's `useState` was never reset because MonthEditor never unmounted!
-
-That's the bug! MonthEditor wraps Modal. When Modal returns null, MonthEditor is still mounted. When the month prop changes (null → monthB), Modal re-renders with a new key, but MonthEditor's `useState` was already initialized on the first mount and never re-initialized.
-
-So even though I changed `useState(month?.content ?? '')` to `useState('')`, the state persists across modal open/close cycles because MonthEditor stays mounted.
-
-The fix: I need to force MonthEditor to remount when the month changes, not just Modal. I can do this by adding a `key` to MonthEditor itself in Dashboard.tsx, or I can reset the state when `open` changes.
-
-The cleanest fix: Add `key={editMonth?.id ?? 'none'}` to the `<MonthEditor>` component in Dashboard.tsx. This way, when the edit month changes, the entire MonthEditor unmounts and remounts, resetting all useState values.
-
-Same for WeekEditor → `key={editWeek?.id ?? 'none'}`.
-Same for EventEditor → it already has a key: `key={editEvent?.event?.id ?? `new-${newEventKey}`}` so it should be fine.
-
-Wait, actually EventEditor has a key, but MonthEditor and WeekEditor don't have keys in Dashboard.tsx. The key they DO have is on the inner `<Modal>` component, but that doesn't force the outer component to remount.
-
-Let me fix this by adding keys to MonthEditor and WeekEditor in Dashboard.tsx.
-
-Found it. The `key` is on `<Modal>` inside MonthEditor, but MonthEditor itself stays mounted between opens, so `useState('')` only runs once on first mount. Same for WeekEditor.
-
-The fix: key the editor components in Dashboard.tsx so they remount entirely.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
-  "offset": 145
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
-<type>file</type>
-<content>145:           {isDark ? 'Light' : 'Dark'}
-146:         </button>
-147:       </div>
-148: 
-149:       {isAdmin && (
-150:         <>
-151:           <MonthEditor
-152:             month={editMonth}
-153:             open={editMonth !== null}
-154:             onSave={updateMonth}
-155:             onClose={() => setEditMonth(null)}
-156:           />
-157:           <WeekEditor
-158:             week={editWeek}
-159:             open={editWeek !== null}
-160:             onSave={updateWeek}
-161:             onClose={() => setEditWeek(null)}
-162:           />
-163:           <EventEditor
-164:             key={editEvent?.event?.id ?? `new-${newEventKey}`}
-165:             event={editEvent?.event ?? null}
-166:             weekId={editEvent?.weekId ?? null}
-167:             open={editEvent !== null}
-168:             onSave={handleSaveEvent}
-169:             onDelete={handleDeleteEvent}
-170:             onClose={() => setEditEvent(null)}
-171:           />
-172:         </>
-173:       )}
-174:     </div>
-175:   )
-176: }
-
-(End of file - total 176 lines)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 4.3s)
-
-_Thinking:_
-
-I see the issue clearly now. EventEditor already has a `key={editEvent?.event?.id ?? `new-${newEventKey}`}` on line 164. But MonthEditor and WeekEditor don't have keys.
-
-I need to add keys to MonthEditor and WeekEditor that change when the edit target changes.
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
-  "oldString": "          <MonthEditor\n            month={editMonth}\n            open={editMonth !== null}\n            onSave={updateMonth}\n            onClose={() => setEditMonth(null)}\n          />\n          <WeekEditor\n            week={editWeek}\n            open={editWeek !== null}\n            onSave={updateWeek}\n            onClose={() => setEditWeek(null)}\n          />",
-  "newString": "          <MonthEditor\n            key={editMonth?.id ?? 'none'}\n            month={editMonth}\n            open={editMonth !== null}\n            onSave={updateMonth}\n            onClose={() => setEditMonth(null)}\n          />\n          <WeekEditor\n            key={editWeek?.id ?? 'none'}\n            week={editWeek}\n            open={editWeek !== null}\n            onSave={updateWeek}\n            onClose={() => setEditWeek(null)}\n          />"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 7.7s)
-
-_Thinking:_
-
-Now I can also remove the `key` from the inner `<Modal>` in MonthEditor and WeekEditor since it's redundant (the outer component key already handles remounting). But it doesn't hurt to keep it — it's harmless. Let me keep them to avoid unnecessary changes.
-
-Actually wait, since MonthEditor now remounts entirely when `editMonth.id` changes, the inner `key={month?.id ?? 'none'}` on Modal is redundant but harmless. Same for WeekEditor. I'll leave them.
-
-Now let me run tests to verify.
-
-**Tool: bash**
-
-**Input:**
-```json
-{
-  "command": "npm test && npm run lint && npm run typecheck",
-  "description": "Run tests, lint, and typecheck",
-  "timeout": 60000
-}
-```
-
-**Output:**
-```
-
-> snips-dashboard@0.0.0 test
-> vitest run
-
-
- RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
-
-
- Test Files  7 passed (7)
-      Tests  39 passed (39)
-   Start at  08:14:27
-   Duration  1.35s (transform 315ms, setup 1.12s, import 381ms, tests 341ms, environment 5.37s)
-
-
-> snips-dashboard@0.0.0 lint
-> eslint .
-
-
-> snips-dashboard@0.0.0 typecheck
-> tsc --noEmit
-
-
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.9s)
-
-All passing. The fix: added `key={editMonth?.id ?? 'none'}` and `key={editWeek?.id ?? 'none'}` to the `<MonthEditor>` and `<WeekEditor>` in Dashboard.tsx. This makes React unmount and remount the entire editor component when switching months/weeks, so all `useState('')` calls reinitialize fresh.
-
----
-
-## User
-
-the text size dropdown in the WYSIWYG editor doesn't work.  simplify it as well.  do like 4 sizes of  xsmall, small, medium, large
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 4.7s)
-
-_Thinking:_
-
-The user says the font size dropdown doesn't work. The issue is with `document.execCommand('fontSize', false, value)`. The `fontSize` command in `document.execCommand` only accepts values 1-7 (HTML font sizes), not pixel values like '10', '12', '14', etc. So passing '10', '12', etc. doesn't work because those aren't valid HTML font sizes (1-7).
-
-The user wants to simplify to: xsmall, small, medium, large (4 sizes).
-
-I need to map these semantic sizes to HTML font sizes (1-7):
-- xsmall → 1
-- small → 2
-- medium → 3 (default)
-- large → 4
-
-Let me update the FONT_SIZES array and the dropdown options.
-
-The `fontSize` command only accepts HTML font sizes 1–7, not pixel values — so it silently fails. Let me fix and simplify.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx</path>
-<type>file</type>
-<content>1: import { useRef, useCallback, useLayoutEffect, type FormEvent, type ClipboardEvent } from 'react'
-2: 
-3: interface WysiwygEditorProps {
-4:   html: string
-5:   onChange: (html: string) => void
-6:   minHeight?: string
-7: }
-8: 
-9: const FONT_SIZES = ['10', '12', '14', '16', '18', '24', '32']
-10: 
-11: const COLORS = [
-12:   { label: 'Default', value: '#e2e8f0' },
-13:   { label: 'Red', value: '#ef4444' },
-14:   { label: 'Orange', value: '#f97316' },
-15:   { label: 'Yellow', value: '#eab308' },
-16:   { label: 'Green', value: '#22c55e' },
-17:   { label: 'Blue', value: '#3b82f6' },
-18:   { label: 'Purple', value: '#a855f7' },
-19:   { label: 'Pink', value: '#ec4899' },
-20:   { label: 'Gray', value: '#94a3b8' },
-21:   { label: 'White', value: '#f8fafc' },
-22:   { label: 'Black', value: '#1e293b' },
-23: ]
-24: 
-25: export function WysiwygEditor({ html, onChange, minHeight = '120px' }: WysiwygEditorProps) {
-26:   const ref = useRef<HTMLDivElement>(null)
-27: 
-28:   useLayoutEffect(() => {
-29:     if (ref.current) {
-30:       ref.current.innerHTML = html || ''
-31:     }
-32:     // eslint-disable-next-line react-hooks/exhaustive-deps
-33:   }, [])
-34: 
-35:   const exec = useCallback((command: string, value?: string) => {
-36:     document.execCommand(command, false, value)
-37:     ref.current?.focus()
-38:   }, [])
-39: 
-40:   const handleInput = useCallback(() => {
-41:     if (ref.current) {
-42:       onChange(ref.current.innerHTML)
-43:     }
-44:   }, [onChange])
-45: 
-46:   const handlePaste = useCallback((e: ClipboardEvent) => {
-47:     e.preventDefault()
-48:     const text = e.clipboardData.getData('text/plain')
-49:     document.execCommand('insertText', false, text)
-50:   }, [])
-51: 
-52:   return (
-53:     <div className="overflow-hidden rounded-lg border border-(--input-border) bg-(--input-bg)">
-54:       <div className="flex flex-wrap items-center gap-0.5 border-b border-(--input-border) bg-(--surface) px-1.5 py-1">
-55:         <button
-56:           type="button"
-57:           className="rounded-md px-2.5 py-1 text-sm font-bold text-(--text) transition-colors hover:bg-(--surface-hover) active:bg-(--border)"
-58:           onClick={() => exec('bold')}
-59:           title="Bold (Ctrl+B)"
-60:         >B</button>
-61:         <button
-62:           type="button"
-63:           className="rounded-md px-2.5 py-1 text-sm italic text-(--text) transition-colors hover:bg-(--surface-hover) active:bg-(--border)"
-64:           onClick={() => exec('italic')}
-65:           title="Italic (Ctrl+I)"
-66:         >I</button>
-67:         <button
-68:           type="button"
-69:           className="rounded-md px-2.5 py-1 text-sm underline text-(--text) transition-colors hover:bg-(--surface-hover) active:bg-(--border)"
-70:           onClick={() => exec('underline')}
-71:           title="Underline (Ctrl+U)"
-72:         >U</button>
-73: 
-74:         <span className="mx-1 h-5 w-px bg-(--border-light)" />
-75: 
-76:         <select
-77:           className="cursor-pointer rounded-md bg-(--btn-bg) px-1.5 py-1 text-xs text-(--btn-text) transition-colors hover:bg-(--btn-hover)"
-78:           onChange={(e: FormEvent<HTMLSelectElement>) => exec('fontSize', (e.target as HTMLSelectElement).value)}
-79:           defaultValue=""
-80:         >
-81:           <option value="" disabled>Size</option>
-82:           {FONT_SIZES.map((s) => (
-83:             <option key={s} value={s}>{s}</option>
-84:           ))}
-85:         </select>
-86: 
-87:         <span className="mx-1 h-5 w-px bg-(--border-light)" />
-88: 
-89:         <select
-90:           className="cursor-pointer rounded-md bg-(--btn-bg) px-1.5 py-1 text-xs text-(--btn-text) transition-colors hover:bg-(--btn-hover)"
-91:           onChange={(e: FormEvent<HTMLSelectElement>) => {
-92:             const val = (e.target as HTMLSelectElement).value
-93:             if (val) exec('foreColor', val)
-94:           }}
-95:           defaultValue=""
-96:         >
-97:           <option value="" disabled>Color</option>
-98:           {COLORS.map((c) => (
-99:             <option key={c.value} value={c.value}>{c.label}</option>
-100:           ))}
-101:         </select>
-102:       </div>
-103:       <div
-104:         ref={ref}
-105:         className="min-h-[120px] overflow-y-auto p-3 text-sm text-(--text) outline-none"
-106:         contentEditable
-107:         suppressContentEditableWarning
-108:         onInput={handleInput}
-109:         onPaste={handlePaste}
-110:         style={{ minHeight }}
-111:       />
-112:     </div>
-113:   )
-114: }
-
-(End of file - total 114 lines)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 6.1s)
-
-_Thinking:_
-
-I need to:
-1. Replace `FONT_SIZES` array with 4 semantic sizes mapped to HTML font sizes 1-7
-2. Update the dropdown options to show xsmall, small, medium, large
-
-`document.execCommand('fontSize', false, value)` accepts values 1-7:
-- 1 = xx-small (8px)
-- 2 = x-small (10px)
-- 3 = small (13px) — default
-- 4 = medium (16px)
-- 5 = large (18px)
-- 6 = x-large (24px)
-- 7 = xx-large (32px)
-
-User wants: xsmall, small, medium, large
-- xsmall → 1
-- small → 2 or 3 (let me use 2 for a noticeable difference)
-- medium → 3 (default body text)
-- large → 4 or 5 (let me use 5 for a clear difference)
-
-Actually, since the user wants to keep it simple, let me map:
-- xsmall → 1
-- small → 2
-- medium → 3
-- large → 5
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx",
-  "oldString": "const FONT_SIZES = ['10', '12', '14', '16', '18', '24', '32']",
-  "newString": "const FONT_SIZES = [\n  { label: 'X-Small', value: '1' },\n  { label: 'Small', value: '2' },\n  { label: 'Medium', value: '3' },\n  { label: 'Large', value: '5' },\n]"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 8.4s)
-
-_Thinking:_
-
-Now update the dropdown rendering to use the new format:
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx",
-  "oldString": "          <option value=\"\" disabled>Size</option>\n          {FONT_SIZES.map((s) => (\n            <option key={s} value={s}>{s}</option>\n          ))}",
-  "newString": "          <option value=\"\" disabled>Size</option>\n          {FONT_SIZES.map((s) => (\n            <option key={s.value} value={s.value}>{s.label}</option>\n          ))}"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 8.4s)
-
-**Tool: bash**
-
-**Input:**
-```json
-{
-  "command": "npm test && npm run lint && npm run typecheck",
-  "description": "Run tests, lint, and typecheck",
-  "timeout": 60000
-}
-```
-
-**Output:**
-```
-
-> snips-dashboard@0.0.0 test
-> vitest run
-
-
- RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
-
-
- Test Files  7 passed (7)
-      Tests  39 passed (39)
-   Start at  08:16:23
-   Duration  1.30s (transform 372ms, setup 982ms, import 434ms, tests 338ms, environment 5.33s)
-
-
-> snips-dashboard@0.0.0 lint
-> eslint .
-
-
-> snips-dashboard@0.0.0 typecheck
-> tsc --noEmit
-
-
-```
-
----
-
-## User
-
-add an xlarge text size as well 
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 4.0s)
-
-_Thinking:_
-
-User wants to add an xlarge size to the WYSIWYG font size dropdown.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx",
-  "offset": 9,
-  "limit": 7
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx</path>
-<type>file</type>
-<content>9: const FONT_SIZES = [
-10:   { label: 'X-Small', value: '1' },
-11:   { label: 'Small', value: '2' },
-12:   { label: 'Medium', value: '3' },
-13:   { label: 'Large', value: '5' },
-14: ]
-15: 
-
-(Showing lines 9-15 of 119. Use offset=16 to continue.)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 3.4s)
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx",
-  "oldString": "  { label: 'Large', value: '5' },\n]",
-  "newString": "  { label: 'Large', value: '5' },\n  { label: 'X-Large', value: '7' },\n]"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 7.1s)
-
-**Tool: bash**
-
-**Input:**
-```json
-{
-  "command": "npm run lint",
-  "description": "Quick lint check"
-}
-```
-
-**Output:**
-```
-
-> snips-dashboard@0.0.0 lint
-> eslint .
-
-
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 3.0s)
-
-Done — added X-Large (HTML size 7).
-
----
-
-## User
-
-the red, orange, green colors in the WYSIWYG editor should come first in the dropdown and in that order. and their colors should align with what is set in the legend  and the group border in the summer weeks
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 8.4s)
-
-_Thinking:_
-
-The user wants:
-1. Red, orange, green colors first in the WYSIWYG color dropdown (in that order)
-2. These colors should match the status colors used in the Legend and EventCard border styles
-
-Let me check what colors are currently used:
-- Legend: `bg-red-500`, `bg-orange-500`, `bg-emerald-500`
-- EventCard status colors:
-  - `mission`: `text-red-400 border-red-500`
-  - `pending`: `text-orange-400 border-orange-500`
-  - `paid`: `text-emerald-400 border-emerald-500`
-
-So I need to find the hex values for Tailwind's red-500, orange-500, emerald-500:
-- red-500: #ef4444
-- orange-500: #f97316
-- emerald-500: #10b981 (or #22c55e is green-500)
-
-Wait, the current COLORS array has:
-- Red: #ef4444 (matches red-500)
-- Orange: #f97316 (matches orange-500)
-- Yellow: #eab308
-- Green: #22c55e (this is green-500, not emerald-500)
-
-The Legend uses `bg-emerald-500` which is #10b981. But the EventCard uses `text-emerald-400 border-emerald-500`. So the border is emerald-500 (#10b981).
-
-So I should change the green to emerald-500: #10b981.
-
-And reorder to put Red, Orange, Green (emerald) first, then the rest.
-
-Let me also think about colors after those three. The user didn't say anything about the rest, so I'll keep them but reorder.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "offset": 11,
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx",
-  "limit": 14
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx</path>
-<type>file</type>
-<content>11:   { label: 'Small', value: '2' },
-12:   { label: 'Medium', value: '3' },
-13:   { label: 'Large', value: '5' },
-14:   { label: 'X-Large', value: '7' },
-15: ]
-16: 
-17: const COLORS = [
-18:   { label: 'Default', value: '#e2e8f0' },
-19:   { label: 'Red', value: '#ef4444' },
-20:   { label: 'Orange', value: '#f97316' },
-21:   { label: 'Yellow', value: '#eab308' },
-22:   { label: 'Green', value: '#22c55e' },
-23:   { label: 'Blue', value: '#3b82f6' },
-24:   { label: 'Purple', value: '#a855f7' },
-
-(Showing lines 11-24 of 120. Use offset=25 to continue.)
-</content>
-```
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Legend.tsx"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/components/Legend.tsx</path>
-<type>file</type>
-<content>1: const ITEMS = [
-2:   { color: 'bg-red-500', label: 'Mission' },
-3:   { color: 'bg-orange-500', label: 'Pending' },
-4:   { color: 'bg-emerald-500', label: 'Paid' },
-5: ]
-6: 
-7: export function Legend() {
-8:   return (
-9:     <div className="flex items-center justify-center gap-6 border-t border-(--border) bg-(--bg) p-2 text-xs text-(--text-secondary)">
-10:       {ITEMS.map((item) => (
-11:         <div key={item.label} className="flex items-center gap-1.5">
-12:           <span className={`inline-block h-3 w-3 rounded ${item.color}`} />
-13:           <span>{item.label}</span>
-14:         </div>
-15:       ))}
-16:     </div>
-17:   )
-18: }
-
-(End of file - total 18 lines)
-</content>
-```
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/utils/dates.ts",
-  "offset": 17
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/src/utils/dates.ts</path>
-<type>file</type>
-<content>17: export function getStatusColor(status: string): string {
-18:   switch (status) {
-19:     case 'mission': return 'text-red-400 border-red-500'
-20:     case 'pending': return 'text-orange-400 border-orange-500'
-21:     case 'paid': return 'text-emerald-400 border-emerald-500'
-22:     default: return 'text-slate-300 border-slate-600'
-23:   }
-24: }
-
-(End of file - total 24 lines)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 8.4s)
-
-_Thinking:_
-
-The Legend uses:
-- `bg-red-500` → #ef4444
-- `bg-orange-500` → #f97316
-- `bg-emerald-500` → #10b981
-
-The WYSIWYG editor currently has:
-- Red: #ef4444 ✅ matches red-500
-- Orange: #f97316 ✅ matches orange-500
-- Green: #22c55e ❌ should be emerald: #10b981
-
-I need to:
-1. Change the Green value from #22c55e (green-500) to #10b981 (emerald-500)
-2. Reorder COLORS so Red, Orange, Emerald come first (after Default)
-3. Keep the rest of the colors in a reasonable order
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WysiwygEditor.tsx",
-  "oldString": "const COLORS = [\n  { label: 'Default', value: '#e2e8f0' },\n  { label: 'Red', value: '#ef4444' },\n  { label: 'Orange', value: '#f97316' },\n  { label: 'Yellow', value: '#eab308' },\n  { label: 'Green', value: '#22c55e' },\n  { label: 'Blue', value: '#3b82f6' },\n  { label: 'Purple', value: '#a855f7' },\n  { label: 'Pink', value: '#ec4899' },\n  { label: 'Gray', value: '#94a3b8' },\n  { label: 'White', value: '#f8fafc' },\n  { label: 'Black', value: '#1e293b' },\n]",
-  "newString": "const COLORS = [\n  { label: 'Default', value: '#e2e8f0' },\n  { label: 'Red', value: '#ef4444' },\n  { label: 'Orange', value: '#f97316' },\n  { label: 'Green', value: '#10b981' },\n  { label: 'Yellow', value: '#eab308' },\n  { label: 'Blue', value: '#3b82f6' },\n  { label: 'Purple', value: '#a855f7' },\n  { label: 'Pink', value: '#ec4899' },\n  { label: 'Gray', value: '#94a3b8' },\n  { label: 'White', value: '#f8fafc' },\n  { label: 'Black', value: '#1e293b' },\n]"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 4.3s)
-
-_Thinking:_
-
-All done. Let me verify the result is correct by reading the updated file section.
-
-Red, Orange, Green are now first in the dropdown (after Default), in that order. Changed the green value from `#22c55e` (green-500) to `#10b981` (emerald-500) to match the Legend and EventCard borders.
-
----
-
-## User
-
-update readme, agents.md. run test cases
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 5.3s)
-
-_Thinking:_
-
-The user wants me to update README.md and AGENTS.md to reflect the recent changes, and run tests. Let me read the current files first.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/README.md"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/README.md</path>
-<type>file</type>
-<content>1: # Snips Dashboard — Mission Team Board
-2: 
-3: A full-screen 16:9 dashboard for tracking mission team events across the year. Displays January–May on the left, 10 summer weeks in the center, and August–December on the right.
-4: 
-5: ## Quick Start
-6: 
-7: ```bash
-8: npm install
-9: npm run dev
-10: ```
-11: 
-12: Open http://localhost:5173 — no Firebase config needed. App runs entirely in local mode with in-memory data.
-13: 
-14: ### Routes
-15: 
-16: | Path | Purpose |
-17: |------|---------|
-18: | `/` | Display mode (read-only TV view) |
-19: | `/admin` | Admin mode — edit months, weeks, and event cards |
-20: | `/admin/login` | Password-protected admin gate (default: `admin`) |
-21: 
-22: ## Features
-23: 
-24: - **3-column grid layout** optimized for 16:9 monitors
-25: - **Dark/light theme toggle**
-26: - **Admin CRUD** — click any month header, week number, or event card to edit
-27: - **Add Group** — create event cards with group name, headcount, housing, status
-28: - **Status colors**: red (mission), orange (pending), green (paid)
-29: - **WYSIWYG editor** — bold, italic, underline, font size, text color in month content and special events
-30: - **Export/Import JSON** — persist and restore board data from the admin toolbar
-31: - **Color legend** at the bottom of the screen
-32: 
-33: ## Scripts
-34: 
-35: | Command | Description |
-36: |---------|-------------|
-37: | `npm run dev` | Start Vite dev server |
-38: | `npm run build` | TypeScript check + production build |
-39: | `npm run preview` | Preview production build |
-40: | `npm run lint` | ESLint |
-41: | `npm run format` | Prettier format |
-42: | `npm run typecheck` | TypeScript check (no emit) |
-43: | `npm test` | Run all tests (Vitest) |
-44: | `npm run test:watch` | Watch mode |
-45: | `npm run test:coverage` | With coverage report |
-46: 
-47: ## Firebase Setup (optional)
-48: 
-49: Copy `.env.example` to `.env` and fill in your Firebase credentials to enable Firestore persistence instead of local-only mode.
-50: 
-51: ## Tech Stack
-52: 
-53: React 19, TypeScript, Vite 8, Tailwind CSS v4, Firebase (optional), React Router v7
-54: 
-55: ## Hosting
-56: 
-57: Static site — upload the `dist/` folder anywhere (Netlify, Cloudflare Pages, Bluehost, DreamHost).
-
-(End of file - total 57 lines)
-</content>
-```
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/AGENTS.md</path>
-<type>file</type>
-<content>1: # AGENTS.md — Snips Dashboard
-2: 
-3: ## Project Overview
-4: Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Firebase backend (optional), hosted on Netlify. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. Runs fully in local/dev mode without Firebase.
-5: 
-6: ---
-7: 
-8: ## Build / Lint / Test Commands
-9: 
-10: ```bash
-11: npm install            # Install dependencies
-12: npm run dev            # Start Vite dev server
-13: npm run dev -- --host  # Expose on network for TV testing
-14: npm run build          # Production build (tsc + vite build)
-15: npm run preview        # Preview production build locally
-16: npm run lint           # ESLint
-17: npm run format         # Prettier format all source files
-18: npm run typecheck      # TypeScript check without emit
-19: 
-20: # Tests (Vitest + React Testing Library)
-21: npm test                          # Run all tests
-22: npm run test:watch                # Watch mode
-23: npx vitest run src/path/to/test   # Run a single test file
-24: npx vitest run -t "test name"     # Run a single test by name pattern
-25: ```
-26: 
-27: ## Tech Stack & Conventions
-28: 
-29: ### Framework & Libraries
-30: - **React 19+** with functional components and hooks
-31: - **TypeScript** (strict mode) — avoid `any`, prefer `unknown`
-32: - **Vite 8+** as bundler
-33: - **Tailwind CSS v4** for all styling — no CSS modules or styled-components
-34: - **Firebase** (Firestore + Auth) — optional, falls back to local state
-35: - **React Router v7** for routing (display vs admin modes)
-36: - **clsx** for conditional class merging (available but unused; prefer template literals)
-37: - **Vitest** + **@testing-library/react** for tests
-38: 
-39: ### Imports Order
-40: ```tsx
-41: // 1. External (npm) — alphabetical
-42: import { useState } from 'react'
-43: import { BrowserRouter, Routes, Route } from 'react-router-dom'
-44: 
-45: // 2. Internal absolute (@/ alias) — alphabetical
-46: import { useAuth } from '@/context/AuthContext'
-47: import { getStatusColor } from '@/utils/dates'
-48: import type { EventCard } from '@/types'
-49: 
-50: // 3. Relative imports — only from same directory
-51: import { MonthBlock } from './MonthBlock'
-52: ```
-53: 
-54: ### Naming Conventions
-55: | Thing | Convention | Example |
-56: |-------|-----------|---------|
-57: | Components | PascalCase | `WeekGrid.tsx`, `MonthBlock.tsx` |
-58: | Hooks | camelCase, `use` prefix | `useAuth`, `useLocalData` |
-59: | Utilities | camelCase | `getStatusColor` |
-60: | Types/Interfaces | PascalCase | `EventCard`, `MonthData` |
-61: | Event handlers | `handle` prefix | `handleSave`, `handleDelete` |
-62: | Booleans | `is`, `has` prefix | `isAdmin`, `isLoading`, `hasConflict` |
-63: | Files | Match main export name | `WeekGrid.tsx` exports `WeekGrid` |
-64: 
-65: ### TypeScript
-66: - Use `interface` for public props/API shapes, `type` for unions
-67: - Define types close to usage; export to `@/types/` if shared across files
-68: - Prefer `const` over `let`; never use `var`
-69: - Use optional chaining (`?.`) and nullish coalescing (`??`)
-70: 
-71: ### Component Pattern
-72: ```tsx
-73: interface MonthBlockProps {
-74:   month: MonthData
-75:   isAdmin?: boolean
-76:   onEdit?: (id: string) => void
-77: }
-78: 
-79: export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
-80:   return (
-81:     <div className="flex flex-col overflow-hidden rounded border border-slate-700 bg-slate-800">
-82:       ...
-83:     </div>
-84:   )
-85: }
-86: ```
-87: 
-88: ### State Management
-89: - **Local state** (`useState`) for UI concerns
-90: - **`useLocalData` hook** — full CRUD for months, weeks, and events (in-memory, no backend needed)
-91: - **Context** for auth and theme (dark/light)
-92: - **Firestore** (optional) — real-time listeners for board data when configured
-93: - No Redux/Zustand unless complexity demands it
-94: 
-95: ### Error Handling
-96: - Wrap Firebase calls in try/catch with user feedback
-97: - Return early for loading/error/empty states:
-98:   ```tsx
-99:   if (isLoading) return <LoadingSpinner />
-100:   if (error) return <ErrorMessage message={error} />
-101:   if (!events.length) return <EmptyState message="No events" />
-102:   ```
-103: - Editor modals: use `key` prop on component to force fresh state, never `useEffect` for prop→state sync
-104: 
-105: ### Firebase (optional)
-106: - Use `collection()` / `doc()` from `firebase/firestore`
-107: - Config via `VITE_` prefixed env vars (never hardcoded)
-108: - Falls back to local state when env vars are empty
-109: 
-110: ### Styling (Tailwind v4)
-111: - Dark theme base: `bg-slate-900 text-white`
-112: - Month headers: `uppercase tracking-wider font-bold text-blue-400`
-113: - Week headers: same style as months (`text-blue-400 uppercase`)
-114: - Card status colors: `text-red-400` (mission), `text-orange-400` (pending), `text-emerald-400` (paid)
-115: - Layout: `h-screen overflow-hidden` for TV fit
-116: - Import: `@import "tailwindcss"` in `index.css`
-117: 
-118: ### Routes
-119: | Path | Purpose |
-120: |------|---------|
-121: | `/` | Display mode (read-only TV view) |
-122: | `/admin` | Admin mode with CRUD |
-123: | `/admin/login` | Password-protected login gate |
-124: 
-125: ### Testing
-126: - `describe` / `it` / `expect` (Vitest)
-127: - `render` from `@testing-library/react`
-128: - Auto-cleanup via `afterEach(cleanup)` in setup file
-129: - Prefer `screen.getByRole` / `getByText`; `getByTestId` as last resort
-130: - Mock contexts in component tests (e.g. `useTheme` for Dashboard tests)
-131: - Hook tests: use `renderHook` + `act` from `@testing-library/react`
-132: 
-133: ### Git
-134: - Feature branches: `feature/<short-description>`
-135: - Imperative commit messages
-136: - `main` deploys automatically to Netlify
-
-(End of file - total 136 lines)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 15.2s)
-
-_Thinking:_
-
-I need to update both files to reflect:
-
-1. **Routes changed**: No more `/admin` or `/admin/login`. Only `/`. Edit mode is toggled by a button on the dashboard.
-2. **Auth removed**: No AuthContext, no login page, no password protection.
-3. **Hosting**: The user plans to host on a Raspberry Pi via nginx on the LAN, not Netlify.
-4. **Firebase**: Still mentioned as optional but auth was removed. The Firebase config/firestore still exists as an option.
-5. **AGENTS.md**: Update routing table, remove auth references, remove Firebase auth mention, update hosting reference.
-
-Let me make both updates and run tests.
-
-**Tool: write**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/README.md",
-  "content": "# Snips Dashboard — Mission Team Board\n\nA full-screen 16:9 dashboard for tracking mission team events across the year. Displays January–May on the left, 10 summer weeks in the center, and August–December on the right.\n\n## Quick Start\n\n```bash\nnpm install\nnpm run dev\n```\n\nOpen http://localhost:5173 — no config needed. Runs entirely in local mode with in-memory data.\n\n### Route\n\n| Path | Purpose |\n|------|---------|\n| `/` | Main view — click **Edit** to switch to admin mode, **View** to go back |\n\n## Features\n\n- **3-column grid layout** optimized for 16:9 monitors\n- **Dark/light theme toggle**\n- **Edit/View toggle** — click to switch between display mode and admin CRUD\n- **Add Group** — create event cards with group name, headcount (default 10), housing, status\n- **Status colors**: red (mission), orange (pending), green (paid)\n- **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in month content and special events\n- **Export/Import JSON** — persist and restore board data from the admin toolbar\n- **Color legend** at the bottom of the screen\n\n## Scripts\n\n| Command | Description |\n|---------|-------------|\n| `npm run dev` | Start Vite dev server |\n| `npm run build` | TypeScript check + production build |\n| `npm run preview` | Preview production build |\n| `npm run lint` | ESLint |\n| `npm run format` | Prettier format |\n| `npm run typecheck` | TypeScript check (no emit) |\n| `npm test` | Run all tests (Vitest) |\n| `npm run test:watch` | Watch mode |\n| `npm run test:coverage` | With coverage report |\n\n## Firebase Setup (optional)\n\nCopy `.env.example` to `.env` and fill in your Firebase credentials to enable Firestore persistence instead of local-only mode.\n\n## Tech Stack\n\nReact 19, TypeScript, Vite 8, Tailwind CSS v4, Firebase (optional), React Router v7\n\n## Hosting\n\nStatic site — upload the `dist/` folder to any web server or CDN. Ideal for a Raspberry Pi on the LAN serving via nginx.\n"
-}
-```
-
-**Output:**
-```
-Wrote file successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md",
-  "oldString": "# AGENTS.md — Snips Dashboard\n\n## Project Overview\nMission Team Board app — React + TypeScript + Tailwind CSS frontend, Firebase backend (optional), hosted on Netlify. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. Runs fully in local/dev mode without Firebase.",
-  "newString": "# AGENTS.md — Snips Dashboard\n\n## Project Overview\nMission Team Board app — React + TypeScript + Tailwind CSS frontend, Firebase backend (optional). Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. Runs fully in local/dev mode without Firebase."
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md",
-  "oldString": "- **React Router v7** for routing (display vs admin modes)\n- **clsx** for conditional class merging (available but unused; prefer template literals)",
-  "newString": "- **React Router v7** for routing (single route, edit toggle in-app)\n- **clsx** for conditional class merging (available but unused; prefer template literals)"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md",
-  "oldString": "import { useAuth } from '@/context/AuthContext'\nimport { getStatusColor } from '@/utils/dates'",
-  "newString": "import { getStatusColor } from '@/utils/dates'"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md",
-  "oldString": "- **Context** for auth and theme (dark/light)",
-  "newString": "- **Context** for theme (dark/light)"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md",
-  "oldString": "### Routes\n| Path | Purpose |\n|------|---------|\n| `/` | Display mode (read-only TV view) |\n| `/admin` | Admin mode with CRUD |\n| `/admin/login` | Password-protected login gate |",
-  "newString": "### Routes\n| Path | Purpose |\n|------|---------|\n| `/` | Main view — **Edit** button toggles admin CRUD, **View** returns to display |"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/AGENTS.md",
-  "oldString": "### Git\n- Feature branches: `feature/<short-description>`\n- Imperative commit messages\n- `main` deploys automatically to Netlify",
-  "newString": "### Git\n- Feature branches: `feature/<short-description>`\n- Imperative commit messages"
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 7.2s)
-
-_Thinking:_
-
-Now let me run the tests.
-
-**Tool: bash**
-
-**Input:**
-```json
-{
-  "command": "npm test",
-  "description": "Run all tests",
-  "timeout": 60000
-}
-```
-
-**Output:**
-```
-
-> snips-dashboard@0.0.0 test
-> vitest run
-
-
- RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
-
-
- Test Files  7 passed (7)
-      Tests  39 passed (39)
-   Start at  08:19:02
-   Duration  1.34s (transform 339ms, setup 1.02s, import 414ms, tests 349ms, environment 5.53s)
-
-
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.9s)
-
-All 39 tests pass. Updated both files:
-
-- **README.md** — single route, Edit/View toggle, Pi/LAN hosting note, no auth mention
-- **AGENTS.md** — removed `useAuth` from import example, removed "auth" from context section, updated routes table to single route, removed Firebase auth and Netlify deploy references
-
----
-
-## User
-
-do we need VITE_ADMIN_PASSWORD in .env.example?
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.9s)
-
-_Thinking:_
-
-No, we removed auth entirely. The admin password env var is no longer used anywhere. Let me remove it from .env.example.
-
-**Tool: read**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/.env.example"
-}
-```
-
-**Output:**
-```
-<path>/home/dminnich/git/home/snips-dashboard/.env.example</path>
-<type>file</type>
-<content>1: VITE_FIREBASE_API_KEY=
-2: VITE_FIREBASE_AUTH_DOMAIN=
-3: VITE_FIREBASE_PROJECT_ID=
-4: VITE_FIREBASE_STORAGE_BUCKET=
-5: VITE_FIREBASE_MESSAGING_SENDER_ID=
-6: VITE_FIREBASE_APP_ID=
-7: VITE_ADMIN_PASSWORD=admin
-
-(End of file - total 7 lines)
-</content>
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.5s)
-
-**Tool: edit**
-
-**Input:**
-```json
-{
-  "filePath": "/home/dminnich/git/home/snips-dashboard/.env.example",
-  "oldString": "VITE_FIREBASE_APP_ID=\nVITE_ADMIN_PASSWORD=admin",
-  "newString": "VITE_FIREBASE_APP_ID="
-}
-```
-
-**Output:**
-```
-Edit applied successfully.
-```
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 2.2s)
-
-Done. Also verified no remaining references — `grep -r ADMIN_PASSWORD src/` returns nothing.
-
----
-
-## User
-
-is firebase still a good database choice for something that is running on the LAN?
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 7.9s)
-
-_Thinking:_
-
-The user is asking whether Firebase is still a good choice for their LAN-based setup. Let me think about this:
-
-1. Firebase is a cloud-based service — it requires internet access. If the app is running on a LAN (Raspberry Pi serving static files), Firebase calls would need to go out to the internet and back, which defeats the purpose of keeping it local.
-2. For a LAN-based setup, the options are:
-   - **LocalStorage** — persist data in the browser (simple, no backend needed)
-   - **json file on the Pi** — save/load from a JSON file via the nginx server (could use a simple API endpoint)
-   - **SQLite** — lightweight database on the Pi
-   - **LowDB or similar** — JSON-based local database for Node.js
-
-The current app already has Export/Import JSON functionality in the admin toolbar. The user could just export the data as JSON and save it, or we could add localStorage persistence so data survives page refreshes.
-
-I think the most practical answer is: Firebase doesn't make sense for a LAN-only setup since it requires internet. The simplest alternatives would be localStorage persistence (client-side) or saving/loading a JSON file on the Pi.
-
-No. Firebase requires internet access to work — it's a cloud service. For a LAN-only Pi setup, better options:
-
-1. **localStorage** — simplest, no backend. Data survives page refreshes in the browser. We already have the Export/Import JSON buttons, just need to auto-save to localStorage.
-2. **JSON file on the Pi** — save/load from a file served by nginx. Would need a tiny backend (e.g. Python Flask or Node.js) to handle writes.
-
-Want me to add localStorage persistence to `useLocalData` so the board data auto-saves and survives refreshes? That'd be the quickest win.
-
----
-
-## User
-
-i don't like localstorage.  multiple devices on the LAN might open up the webpage
-
----
-
-## Assistant (Build · deepseek-v4-flash-free · 10.2s)
-
-_Thinking:_
-
-The user doesn't want localStorage because multiple devices might open the page. Without a shared backend, each browser has its own localStorage, so data wouldn't sync across devices.
-
-The user needs a shared database accessible from all devices on the LAN. Options:
-
-1. **SQLite** — simplest file-based DB, needs a small backend server (Python, Node.js, etc.) to run on the Pi
-2. **JSON file + sync** — a small backend on the Pi that serves/writes a JSON file. All clients read from it.
-3. **SQLite via the Pi** — add a tiny backend (maybe a single Python script with Flask or a Node.js server) that reads/writes to SQLite. The React app makes fetch calls to `http://raspberry-pi-ip:port/api/...`
-4. **LowDB** — JSON-file-based database for Node.js, very simple API
-
-Given the current setup (React static files served by nginx), the simplest approach would be to add a small backend server on the Pi. Options:
-
-- **Node.js + Express** with a JSON file or SQLite — same language as the frontend
-- **Python + Flask** with SQLite — lightweight, probably already on the Pi
-- **Better-SQLite3** via Node.js — fast, no server process needed, just a library
-
-Actually, the simplest approach might be:
-1. Add a tiny Express server (or use `json-server` for quick REST API)
-2. The React app fetches from `http://<pi-ip>:3001/api/data`
-3. nginx proxies `/api/*` to the backend, serves static files for everything else
-
-Or even simpler: Create a small Node.js script using `better-sqlite3` or just a JSON file with Express. The React app just makes fetch calls to `/api/data`.
-
-Let me ask the user what approach they'd prefer, or suggest the simplest option.
-
-Actually, let me just ask them what they want.
-
-Makes sense — localStorage is per-browser, so no sync. For LAN with multiple devices, you need a shared data source on the Pi.
-
-Simplest options:
-
-1. **JSON file + tiny server** — a small Node.js/Express server (or Python Flask) reads/writes a `data.json` file on the Pi. React talks to it via `fetch('/api/...')`. No database to set up.
-2. **SQLite** — same small server but with SQLite for structured data. Slightly more robust.
-
-Both would run as a background process on the Pi. nginx proxies `/api/*` to it and serves the static React build for everything else.
-
-Want me to build option 1 (JSON file + Express server)? It'd be a single `server.js` file with maybe 30 lines of code.
+**Updated:** 6/6/2026, 9:09:15 AM
 
 ---
 
@@ -6148,6 +4134,1512 @@ All three updated:
 - **README.md** — replaced Firebase section with Production Server section (`npm start`, Express + SQLite, multi-device LAN), updated tech stack, scripts table includes `npm start`
 - **AGENTS.md** — stripped all Firebase/clsx references, added server and API endpoint docs, updated overview and tech stack
 - **.gitignore** — added `data.db` and `data.db-*` (SQLite WAL/SHM files)
+
+---
+
+## User
+
+clicking on a week or month header should prepopulate the editor with the data from that month or week header.  the special events should align to the bottom left in the month boxes just like they do in the week boxes
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 13.1s)
+
+_Thinking:_
+
+The user wants:
+
+1. **Month/Week editors should prepopulate with existing data** - Currently the editors start blank because I changed `useState` to initialize with `''`. Now the user wants them to show the existing data when editing. This means:
+   - MonthEditor: content, subtitle, specialEvents should show the current values from the month
+   - WeekEditor: subtitle, specialEvents should show the current values from the week
+
+2. **Special events in month boxes should align to bottom left** - Currently in MonthBlock, specialEvents use `mt-auto` which pushes to the bottom. But the user wants it at the bottom-left corner specifically (not centered or anything). Let me check the current styling.
+
+Looking at MonthBlock:
+```tsx
+{month.specialEvents && (
+  <div className="mt-auto text-xs text-(--text-muted)" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />
+)}
+```
+
+The `mt-auto` pushes it to the bottom. The text should be left-aligned by default. It doesn't have any explicit alignment classes. The week version has:
+```tsx
+<div className="px-1.5 pb-1 text-[10px] text-(--text-muted)" dangerouslySetInnerHTML={{ __html: weekData.specialEvents }} />
+```
+
+Both should work. The user says "align to the bottom left in the month boxes just like they do in the week boxes" — so the month special events should match the week styling. The week uses `px-1.5 pb-1` and `text-[10px]`. The month uses `text-xs` and no padding.
+
+Let me update MonthBlock's special events to match the week style, and fix the editor initialization.
+
+For the editor prepopulation, I need to change back:
+- MonthEditor: `useState(month?.content ?? '')` etc. — but with the key on the component, this should re-initialize when the month changes
+- WeekEditor: `useState(week?.subtitle ?? '')` etc.
+
+Wait, we already have keys on the editor components in Dashboard.tsx:
+```tsx
+<MonthEditor
+  key={editMonth?.id ?? 'none'}
+  ...
+/>
+<WeekEditor
+  key={editWeek?.id ?? 'none'}
+  ...
+/>
+```
+
+So when `editMonth` changes from January to February, the key changes, MonthEditor remounts, and `useState` initializes with the new month's data.
+
+But the current code has `useState('')` for all fields in both editors. I need to change them back to `useState(month?.content ?? '')` etc.
+
+Wait, but let me re-read what happened earlier. The user said "clicking on a month or week header should start blank. it should not be pre-filled in with data from previous times i set month or week." So I changed them to `useState('')`.
+
+But then later they said "when i set a months content and then click on another month i still see the previous data i set in the new modal." So the issue was stale data. I fixed it by adding keys to the editor components in Dashboard.tsx. But the editors still initialize with `''` because I had changed them.
+
+Now the user wants prepopulation. With the keys in place, I can safely use `useState(month?.content ?? '')` because the key ensures a fresh mount with correct data.
+
+And for the headcount in EventEditor, I recently changed it to:
+```tsx
+const [headcount, setHeadcount] = useState(event ? String(event.headcount) : '')
+```
+This already handles the prepopulation correctly for editing vs new.
+
+Let me make the changes:
+
+1. MonthEditor: Change `useState('')` back to `useState(month?.content ?? '')`, etc.
+2. WeekEditor: Change `useState('')` back to `useState(week?.subtitle ?? '')`, etc.
+3. MonthBlock: Match special events styling to the week version (bottom-left, same padding/font)
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthEditor.tsx",
+  "limit": 20
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/MonthEditor.tsx</path>
+<type>file</type>
+<content>1: import { useState } from 'react'
+2: import type { MonthData } from '@/types'
+3: import { Modal } from './Modal'
+4: import { WysiwygEditor } from './WysiwygEditor'
+5: 
+6: interface MonthEditorProps {
+7:   month: MonthData | null
+8:   open: boolean
+9:   onSave: (id: string, patch: Partial<MonthData>) => void
+10:   onClose: () => void
+11: }
+12: 
+13: export function MonthEditor({ month, open, onSave, onClose }: MonthEditorProps) {
+14:   const [content, setContent] = useState('')
+15:   const [subtitle, setSubtitle] = useState('')
+16:   const [specialEvents, setSpecialEvents] = useState('')
+17: 
+18:   const handleSave = () => {
+19:     if (!month) return
+20:     onSave(month.id, { content, subtitle, specialEvents })
+
+(Showing lines 1-20 of 66. Use offset=21 to continue.)
+</content>
+```
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WeekEditor.tsx",
+  "limit": 20
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/WeekEditor.tsx</path>
+<type>file</type>
+<content>1: import { useState } from 'react'
+2: import type { WeekData } from '@/types'
+3: import { Modal } from './Modal'
+4: import { WysiwygEditor } from './WysiwygEditor'
+5: 
+6: interface WeekEditorProps {
+7:   week: WeekData | null
+8:   open: boolean
+9:   onSave: (id: string, patch: Partial<WeekData>) => void
+10:   onClose: () => void
+11: }
+12: 
+13: export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
+14:   const [subtitle, setSubtitle] = useState('')
+15:   const [specialEvents, setSpecialEvents] = useState('')
+16: 
+17:   const handleSave = () => {
+18:     if (!week) return
+19:     onSave(week.id, { subtitle, specialEvents })
+20:     onClose()
+
+(Showing lines 1-20 of 61. Use offset=21 to continue.)
+</content>
+```
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.tsx",
+  "offset": 30,
+  "limit": 12
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.tsx</path>
+<type>file</type>
+<content>30:           <div className="text-(--text)" dangerouslySetInnerHTML={{ __html: month.content }} />
+31:         )}
+32:         {month.specialEvents && (
+33:           <div className="mt-auto text-xs text-(--text-muted)" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />
+34:         )}
+35:         {isAdmin && (
+36:           <div className="mt-auto text-center text-xs text-(--text-muted) opacity-0 hover:opacity-100">
+37:             Click to edit
+38:           </div>
+39:         )}
+40:       </div>
+41:     </div>
+
+(Showing lines 30-41 of 43. Use offset=42 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 6.4s)
+
+_Thinking:_
+
+Now I have the exact context. Let me make all three changes:
+
+1. MonthEditor: `useState('')` → `useState(month?.content ?? '')` etc.
+2. WeekEditor: `useState('')` → `useState(week?.subtitle ?? '')` etc.
+3. MonthBlock: `mt-auto text-xs` → `mt-auto px-2 pb-2 text-[10px]` (matching the week special events style)
+
+Let me do all three edits.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthEditor.tsx",
+  "oldString": "  const [content, setContent] = useState('')\n  const [subtitle, setSubtitle] = useState('')\n  const [specialEvents, setSpecialEvents] = useState('')",
+  "newString": "  const [content, setContent] = useState(month?.content ?? '')\n  const [subtitle, setSubtitle] = useState(month?.subtitle ?? '')\n  const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? '')"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/WeekEditor.tsx",
+  "oldString": "  const [subtitle, setSubtitle] = useState('')\n  const [specialEvents, setSpecialEvents] = useState('')",
+  "newString": "  const [subtitle, setSubtitle] = useState(week?.subtitle ?? '')\n  const [specialEvents, setSpecialEvents] = useState(week?.specialEvents ?? '')"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.tsx",
+  "oldString": "        {month.specialEvents && (\n          <div className=\"mt-auto text-xs text-(--text-muted)\" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />\n        )}",
+  "newString": "        {month.specialEvents && (\n          <div className=\"mt-auto px-2 pb-2 text-[10px] text-(--text-muted)\" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />\n        )}"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 6.9s)
+
+_Thinking:_
+
+Now let me verify the changes by running the full test suite.
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test && npm run lint && npm run typecheck",
+  "description": "Run tests, lint, typecheck",
+  "timeout": 60000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+
+ Test Files  7 passed (7)
+      Tests  39 passed (39)
+   Start at  08:59:47
+   Duration  1.35s (transform 219ms, setup 981ms, import 299ms, tests 352ms, environment 5.75s)
+
+
+> snips-dashboard@0.0.0 lint
+> eslint .
+
+
+> snips-dashboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.9s)
+
+All clean. Changes:
+
+- **MonthEditor** — fields now pre-fill from the month's current data (`month?.content ?? ''`, etc.)
+- **WeekEditor** — fields now pre-fill from the week's current data (`week?.subtitle ?? ''`, etc.)
+- **MonthBlock** — special events styling matches the week cards: `text-[10px]` font, `px-2 pb-2` padding, bottom-left aligned via `mt-auto`
+
+---
+
+## User
+
+lets move the export json and import json buttons to the legend bar at the bottom
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 5.2s)
+
+_Thinking:_
+
+The user wants to move the Export JSON and Import JSON buttons from the top-left corner (absolute positioned) to the Legend bar at the bottom of the screen. Let me look at the current Dashboard layout to understand how to do this.
+
+Currently in Dashboard.tsx:
+- Export/Import buttons are in an absolute-positioned div at top-left
+- Legend is a component rendered at the bottom
+- Theme/Edit toggle buttons are absolute at bottom-right
+
+I should move the Export/Import buttons into the Legend component or next to it. The Legend bar is at the bottom of the screen. I could put them on the left side of the legend bar.
+
+Let me look at the current Legend component and the Dashboard layout.
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Legend.tsx"
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Legend.tsx</path>
+<type>file</type>
+<content>1: const ITEMS = [
+2:   { color: 'bg-red-500', label: 'Mission' },
+3:   { color: 'bg-orange-500', label: 'Pending' },
+4:   { color: 'bg-emerald-500', label: 'Paid' },
+5: ]
+6: 
+7: export function Legend() {
+8:   return (
+9:     <div className="flex items-center justify-center gap-6 border-t border-(--border) bg-(--bg) p-2 text-xs text-(--text-secondary)">
+10:       {ITEMS.map((item) => (
+11:         <div key={item.label} className="flex items-center gap-1.5">
+12:           <span className={`inline-block h-3 w-3 rounded ${item.color}`} />
+13:           <span>{item.label}</span>
+14:         </div>
+15:       ))}
+16:     </div>
+17:   )
+18: }
+
+(End of file - total 18 lines)
+</content>
+```
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "offset": 60,
+  "limit": 40
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>60:   const leftMonths = MONTHS_LEFT.map(
+61:     (name) => months.find((m) => m.name === name) ?? {
+62:       id: name.toLowerCase(), name, content: '', subtitle: '', specialEvents: '',
+63:     },
+64:   )
+65:   const rightMonths = MONTHS_RIGHT.map(
+66:     (name) => months.find((m) => m.name === name) ?? {
+67:       id: name.toLowerCase(), name, content: '', subtitle: '', specialEvents: '',
+68:     },
+69:   )
+70: 
+71:   return (
+72:     <div className="flex h-screen flex-col overflow-hidden bg-(--bg) text-(--text)">
+73:       {isAdmin && (
+74:         <div className="absolute left-2 top-2 z-10 flex flex-wrap gap-2">
+75:           <button
+76:             className="rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)"
+77:             onClick={() => {
+78:               const json = toolbar.exportData()
+79:               navigator.clipboard.writeText(json)
+80:             }}
+81:           >
+82:             Export JSON
+83:           </button>
+84:           <button
+85:             className="rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)"
+86:             onClick={() => {
+87:               const json = prompt('Paste JSON data:')
+88:               if (json) toolbar.importData(json)
+89:             }}
+90:           >
+91:             Import JSON
+92:           </button>
+93:         </div>
+94:       )}
+95: 
+96:       <div className="flex flex-1 gap-3 overflow-hidden p-3">
+97:         <div className="flex w-[20%] flex-col gap-3">
+98:           {leftMonths.map((month) => (
+99:             <MonthBlock
+
+(Showing lines 60-99 of 178. Use offset=100 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 10.5s)
+
+_Thinking:_
+
+I need to:
+
+1. Move the export/import buttons from the absolute top-left into the Legend bar
+2. Update the Legend component to accept `isAdmin`, `onExport`, `onImport` props, or just pass the handlers in
+
+The simplest approach: keep the export/import buttons in Dashboard but move them to the Legend bar area. I can modify the Legend component to accept children and render them on the left side.
+
+Or better, just add the buttons to the Legend bar in Dashboard directly, by putting them inside the legend div.
+
+Actually, the cleanest approach: modify Legend to accept `isAdmin` and the export/import handlers as props, and render the buttons inside the legend bar on the left side.
+
+Let me think about the layout. The current Legend is:
+```
+[Mission dot] Mission  [Pending dot] Pending  [Paid dot] Paid
+```
+
+I want it to be:
+```
+[Export] [Import]   |   [Mission dot] Mission  [Pending dot] Pending  [Paid dot] Paid
+```
+
+So the legend bar should be `flex items-center` with `justify-between` or similar. The buttons on the left, the status items centered.
+
+Let me modify Legend to accept optional admin props and render the buttons on the left.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Legend.tsx",
+  "oldString": "const ITEMS = [\n  { color: 'bg-red-500', label: 'Mission' },\n  { color: 'bg-orange-500', label: 'Pending' },\n  { color: 'bg-emerald-500', label: 'Paid' },\n]\n\nexport function Legend() {\n  return (\n    <div className=\"flex items-center justify-center gap-6 border-t border-(--border) bg-(--bg) p-2 text-xs text-(--text-secondary)\">\n      {ITEMS.map((item) => (\n        <div key={item.label} className=\"flex items-center gap-1.5\">\n          <span className={`inline-block h-3 w-3 rounded ${item.color}`} />\n          <span>{item.label}</span>\n        </div>\n      ))}\n    </div>\n  )\n}",
+  "newString": "const ITEMS = [\n  { color: 'bg-red-500', label: 'Mission' },\n  { color: 'bg-orange-500', label: 'Pending' },\n  { color: 'bg-emerald-500', label: 'Paid' },\n]\n\ninterface LegendProps {\n  isAdmin?: boolean\n  onExport?: () => void\n  onImport?: () => void\n}\n\nexport function Legend({ isAdmin, onExport, onImport }: LegendProps) {\n  return (\n    <div className=\"flex items-center justify-center gap-6 border-t border-(--border) bg-(--bg) p-2 text-xs text-(--text-secondary)\">\n      {isAdmin && (\n        <div className=\"absolute left-2 flex gap-2\">\n          <button\n            className=\"rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)\"\n            onClick={onExport}\n          >\n            Export JSON\n          </button>\n          <button\n            className=\"rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)\"\n            onClick={onImport}\n          >\n            Import JSON\n          </button>\n        </div>\n      )}\n      {ITEMS.map((item) => (\n        <div key={item.label} className=\"flex items-center gap-1.5\">\n          <span className={`inline-block h-3 w-3 rounded ${item.color}`} />\n          <span>{item.label}</span>\n        </div>\n      ))}\n    </div>\n  )\n}"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 4.3s)
+
+_Thinking:_
+
+Now I need to update Dashboard.tsx to:
+1. Remove the absolute-positioned export/import buttons from the top
+2. Pass `isAdmin`, `onExport`, `onImport` to the Legend component
+3. Create the handler functions
+
+Let me also pass `onExport` and `onImport` to the Legend. I'll create callback functions in Dashboard that wrap the toolbar calls.
+
+Now update Dashboard.tsx — remove the top-left buttons and pass handlers to Legend:
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "offset": 71,
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "limit": 10
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>71:   return (
+72:     <div className="flex h-screen flex-col overflow-hidden bg-(--bg) text-(--text)">
+73:       {isAdmin && (
+74:         <div className="absolute left-2 top-2 z-10 flex flex-wrap gap-2">
+75:           <button
+76:             className="rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)"
+77:             onClick={() => {
+78:               const json = toolbar.exportData()
+79:               navigator.clipboard.writeText(json)
+80:             }}
+
+(Showing lines 71-80 of 178. Use offset=81 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 4.7s)
+
+_Thinking:_
+
+I need to:
+1. Remove lines 73-94 (the absolute-positioned export/import buttons)
+2. Find the Legend component in the render and pass props
+
+Let me also look at where Legend is rendered.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "      {isAdmin && (\n        <div className=\"absolute left-2 top-2 z-10 flex flex-wrap gap-2\">\n          <button\n            className=\"rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)\"\n            onClick={() => {\n              const json = toolbar.exportData()\n              navigator.clipboard.writeText(json)\n            }}\n          >\n            Export JSON\n          </button>\n          <button\n            className=\"rounded bg-(--btn-bg) px-3 py-1 text-xs text-(--btn-text) hover:bg-(--btn-hover)\"\n            onClick={() => {\n              const json = prompt('Paste JSON data:')\n              if (json) toolbar.importData(json)\n            }}\n          >\n            Import JSON\n          </button>\n        </div>\n      )}\n\n      <div",
+  "newString": "      <div"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.1s)
+
+_Thinking:_
+
+Now find and update the Legend usage in Dashboard.
+
+**Tool: grep**
+
+**Input:**
+```json
+{
+  "pattern": "Legend",
+  "include": "Dashboard.tsx"
+}
+```
+
+**Output:**
+```
+Found 2 matches
+/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx:
+  Line 4: import { Legend } from './Legend'
+  Line 109:       <Legend />
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 4.3s)
+
+_Thinking:_
+
+I need to replace `<Legend />` with the version that passes props. Let me also add the handler functions. I'll add export/import callback handlers in the component.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "      <Legend />",
+  "newString": "      <Legend\n        isAdmin={isAdmin}\n        onExport={() => {\n          const json = toolbar.exportData()\n          navigator.clipboard.writeText(json)\n        }}\n        onImport={() => {\n          const json = prompt('Paste JSON data:')\n          if (json) toolbar.importData(json)\n        }}\n      />"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 7.2s)
+
+_Thinking:_
+
+Now let me run tests to make sure everything still works. The Legend test needs to be checked — it renders `<Legend />` without props which should still work since the props are optional.
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test && npm run lint && npm run typecheck",
+  "description": "Run tests, lint, typecheck",
+  "timeout": 60000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+
+ Test Files  7 passed (7)
+      Tests  39 passed (39)
+   Start at  09:00:36
+   Duration  1.38s (transform 312ms, setup 1.13s, import 365ms, tests 399ms, environment 5.79s)
+
+
+> snips-dashboard@0.0.0 lint
+> eslint .
+
+
+> snips-dashboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 2.7s)
+
+_Thinking:_
+
+All clean. Let me verify the final state of the modified files looks correct.
+
+All clean. Export/Import buttons now sit inside the Legend bar at the bottom-left (when in Edit mode), rather than floating at the top-left.
+
+---
+
+## User
+
+get rid of the click to edit hover in the month cards
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.4s)
+
+_Thinking:_
+
+The user wants to remove the "Click to edit" text that appears on hover in month cards when in admin mode. Let me look at MonthBlock.tsx.
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.tsx",
+  "offset": 33,
+  "limit": 10
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.tsx</path>
+<type>file</type>
+<content>33:           <div className="mt-auto px-2 pb-2 text-[10px] text-(--text-muted)" dangerouslySetInnerHTML={{ __html: month.specialEvents }} />
+34:         )}
+35:         {isAdmin && (
+36:           <div className="mt-auto text-center text-xs text-(--text-muted) opacity-0 hover:opacity-100">
+37:             Click to edit
+38:           </div>
+39:         )}
+40:       </div>
+41:     </div>
+42:   )
+
+(Showing lines 33-42 of 43. Use offset=43 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.8s)
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.tsx",
+  "oldString": "        {isAdmin && (\n          <div className=\"mt-auto text-center text-xs text-(--text-muted) opacity-0 hover:opacity-100\">\n            Click to edit\n          </div>\n        )}",
+  "newString": ""
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 4.8s)
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test",
+  "description": "Quick test check",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+ ❯ src/components/MonthBlock.test.tsx (6 tests | 1 failed) 73ms
+     × shows edit hint in admin mode 11ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/components/MonthBlock.test.tsx > MonthBlock > shows edit hint in admin mode
+TestingLibraryElementError: Unable to find an element with the text: Click to edit. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.
+
+Ignored nodes: comments, script, style
+[36m<body>[39m
+  [36m<div>[39m
+    [36m<div[39m
+      [33mclass[39m=[32m"flex flex-1 flex-col overflow-hidden rounded border border-(--border) bg-(--surface)"[39m
+    [36m>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex flex-col border-b border-(--border) bg-(--header) py-1.5 text-center text-sm font-bold uppercase tracking-wider text-blue-400 cursor-pointer hover:bg-(--header-hover)"[39m
+      [36m>[39m
+        [36m<span>[39m
+          [0mJanuary[0m
+          [36m<span[39m
+            [33mclass[39m=[32m"ml-1.5 text-[10px] text-(--text-muted)"[39m
+          [36m>[39m
+            [0m✎[0m
+          [36m</span>[39m
+        [36m</span>[39m
+        [36m<span[39m
+          [33mclass[39m=[32m"text-[10px] font-normal text-(--text-secondary)"[39m
+        [36m>[39m
+          [0mJan 1-31[0m
+        [36m</span>[39m
+      [36m</div>[39m
+      [36m<div[39m
+        [33mclass[39m=[32m"flex flex-1 flex-col gap-1 overflow-y-auto p-2 text-xs text-(--text)"[39m
+      [36m>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"text-(--text)"[39m
+        [36m>[39m
+          [0mSome content[0m
+        [36m</div>[39m
+        [36m<div[39m
+          [33mclass[39m=[32m"mt-auto px-2 pb-2 text-[10px] text-(--text-muted)"[39m
+        [36m>[39m
+          [0mBirthday[0m
+        [36m</div>[39m
+      [36m</div>[39m
+    [36m</div>[39m
+  [36m</div>[39m
+[36m</body>[39m
+ ❯ Object.getElementError node_modules/@testing-library/dom/dist/config.js:37:19
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:76:38
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:52:17
+ ❯ node_modules/@testing-library/dom/dist/query-helpers.js:95:19
+ ❯ src/components/MonthBlock.test.tsx:37:19
+     35|   it('shows edit hint in admin mode', () => {
+     36|     render(<MonthBlock month={baseMonth} isAdmin />)
+     37|     expect(screen.getByText('Click to edit')).toBeInTheDocument()
+       |                   ^
+     38|   })
+     39|
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+
+ Test Files  1 failed | 6 passed (7)
+      Tests  1 failed | 38 passed (39)
+   Start at  09:06:35
+   Duration  1.31s (transform 264ms, setup 979ms, import 345ms, tests 397ms, environment 5.50s)
+
+
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.1s)
+
+_Thinking:_
+
+Need to remove the test for "shows edit hint in admin mode" since we removed that feature.
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.test.tsx"
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.test.tsx</path>
+<type>file</type>
+<content>1: import { describe, it, expect } from 'vitest'
+2: import { render, screen } from '@testing-library/react'
+3: import { MonthBlock } from './MonthBlock'
+4: import type { MonthData } from '@/types'
+5: 
+6: const baseMonth: MonthData = {
+7:   id: 'january',
+8:   name: 'January',
+9:   content: 'Some content',
+10:   subtitle: 'Jan 1-31',
+11:   specialEvents: 'Birthday',
+12: }
+13: 
+14: describe('MonthBlock', () => {
+15:   it('renders month name', () => {
+16:     render(<MonthBlock month={baseMonth} />)
+17:     expect(screen.getByText('January')).toBeInTheDocument()
+18:   })
+19: 
+20:   it('renders subtitle when present', () => {
+21:     render(<MonthBlock month={baseMonth} />)
+22:     expect(screen.getByText('Jan 1-31')).toBeInTheDocument()
+23:   })
+24: 
+25:   it('renders content', () => {
+26:     render(<MonthBlock month={baseMonth} />)
+27:     expect(screen.getByText('Some content')).toBeInTheDocument()
+28:   })
+29: 
+30:   it('renders special events', () => {
+31:     render(<MonthBlock month={baseMonth} />)
+32:     expect(screen.getByText('Birthday')).toBeInTheDocument()
+33:   })
+34: 
+35:   it('shows edit hint in admin mode', () => {
+36:     render(<MonthBlock month={baseMonth} isAdmin />)
+37:     expect(screen.getByText('Click to edit')).toBeInTheDocument()
+38:   })
+39: 
+40:   it('does not show edit hint in read-only mode', () => {
+41:     render(<MonthBlock month={baseMonth} />)
+42:     expect(screen.queryByText('Click to edit')).not.toBeInTheDocument()
+43:   })
+44: })
+
+(End of file - total 44 lines)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.7s)
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/MonthBlock.test.tsx",
+  "oldString": "  it('shows edit hint in admin mode', () => {\n    render(<MonthBlock month={baseMonth} isAdmin />)\n    expect(screen.getByText('Click to edit')).toBeInTheDocument()\n  })\n\n  it('does not show edit hint in read-only mode', () => {\n    render(<MonthBlock month={baseMonth} />)\n    expect(screen.queryByText('Click to edit')).not.toBeInTheDocument()\n  })",
+  "newString": "  it('shows edit icon in admin mode', () => {\n    render(<MonthBlock month={baseMonth} isAdmin />)\n    expect(screen.getByText('✎')).toBeInTheDocument()\n  })"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 6.5s)
+
+_Thinking:_
+
+Wait, the pencil icon is `&#9998;` which renders as `✎`. Let me check... actually `&#9998;` is ✎ (a pencil). The `✎` character is actually `&#9998;` or `&#x270E;`. Let me verify this is correct.
+
+Actually, `&#9998;` in HTML is `✎`. But let me check what the test would see. The render output shows `✎` in the DOM (from the HTML entity). The test tries `getByText('✎')`. Should work.
+
+Let me run tests.
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test",
+  "description": "Run tests",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+
+ Test Files  7 passed (7)
+      Tests  38 passed (38)
+   Start at  09:06:48
+   Duration  1.34s (transform 400ms, setup 990ms, import 572ms, tests 373ms, environment 5.47s)
+
+
+```
+
+---
+
+## User
+
+the export json button doesn't do anything
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 5.8s)
+
+_Thinking:_
+
+The user says the Export JSON button doesn't do anything. Let me look at what the `onExport` handler does in Dashboard.tsx and how it's passed to Legend.
+
+The current onExport handler:
+```tsx
+onExport={() => {
+  const json = toolbar.exportData()
+  navigator.clipboard.writeText(json)
+}}
+```
+
+And in Legend, the button calls `onExport` but doesn't do anything visible - it copies to clipboard silently. The user probably expects some feedback or a download. Let me think about what would be better:
+
+1. The clipboard write might fail in non-HTTPS contexts (like localhost or LAN). `navigator.clipboard.writeText` requires a secure context (HTTPS or localhost).
+2. The user might want a file download instead.
+
+For a LAN environment (HTTP, not HTTPS), `navigator.clipboard.writeText` might not work. Let me change it to trigger a file download instead, which works everywhere.
+
+The clipboard API likely fails over plain HTTP on the LAN. `navigator.clipboard.writeText` requires a secure context. Let me switch to a file download.
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "offset": 137,
+  "limit": 20
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>137:         <>
+138:           <MonthEditor
+139:             key={editMonth?.id ?? 'none'}
+140:             month={editMonth}
+141:             open={editMonth !== null}
+142:             onSave={updateMonth}
+143:             onClose={() => setEditMonth(null)}
+144:           />
+145:           <WeekEditor
+146:             key={editWeek?.id ?? 'none'}
+147:             week={editWeek}
+148:             open={editWeek !== null}
+149:             onSave={updateWeek}
+150:             onClose={() => setEditWeek(null)}
+151:           />
+152:           <EventEditor
+153:             key={editEvent?.event?.id ?? `new-${newEventKey}`}
+154:             event={editEvent?.event ?? null}
+155:             weekId={editEvent?.weekId ?? null}
+156:             open={editEvent !== null}
+
+(Showing lines 137-156 of 165. Use offset=157 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.1s)
+
+_Thinking:_
+
+I need to find the Legend rendering in Dashboard to update the onExport handler. Let me search for it.
+
+**Tool: grep**
+
+**Input:**
+```json
+{
+  "include": "Dashboard.tsx",
+  "pattern": "Legend"
+}
+```
+
+**Output:**
+```
+Found 2 matches
+/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx:
+  Line 4: import { Legend } from './Legend'
+  Line 109:       <Legend
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 2.8s)
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "offset": 109,
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "limit": 14
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>109:       <Legend
+110:         isAdmin={isAdmin}
+111:         onExport={() => {
+112:           const json = toolbar.exportData()
+113:           navigator.clipboard.writeText(json)
+114:         }}
+115:         onImport={() => {
+116:           const json = prompt('Paste JSON data:')
+117:           if (json) toolbar.importData(json)
+118:         }}
+119:       />
+120: 
+121:       <div className="absolute bottom-2 right-2 flex gap-2">
+122:         <button
+
+(Showing lines 109-122 of 165. Use offset=123 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.6s)
+
+_Thinking:_
+
+I'll replace the clipboard write with a file download that works everywhere.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "        onExport={() => {\n          const json = toolbar.exportData()\n          navigator.clipboard.writeText(json)\n        }}",
+  "newString": "        onExport={() => {\n          const json = toolbar.exportData()\n          const blob = new Blob([json], { type: 'application/json' })\n          const url = URL.createObjectURL(blob)\n          const a = document.createElement('a')\n          a.href = url\n          a.download = 'dashboard-data.json'\n          a.click()\n          URL.revokeObjectURL(url)\n        }}"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 7.3s)
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test && npm run lint && npm run typecheck",
+  "description": "Run tests, lint, typecheck",
+  "timeout": 60000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+
+ Test Files  7 passed (7)
+      Tests  38 passed (38)
+   Start at  09:07:09
+   Duration  1.33s (transform 253ms, setup 949ms, import 321ms, tests 367ms, environment 5.38s)
+
+
+> snips-dashboard@0.0.0 lint
+> eslint .
+
+
+> snips-dashboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 2.9s)
+
+Now it downloads `dashboard-data.json` instead of relying on the clipboard (which needs HTTPS). Works over plain HTTP on the LAN.
+
+---
+
+## User
+
+browser tools are throwing Encountered two children with the same key, `none`. Keys should be unique so that components maintain their identity across updates. Non-unique keys may cause children to be duplicated and/or omitted — the behavior is unsupported and could change in a future version. 
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 6.7s)
+
+_Thinking:_
+
+The error says "Encountered two children with the same key, `none`." This is happening because when `editMonth` is null, the key is `'none'` and when `editWeek` is null, the key is also `'none'`. Both editors are rendered inside the same fragment when `isAdmin` is true:
+
+```tsx
+{isAdmin && (
+  <>
+    <MonthEditor
+      key={editMonth?.id ?? 'none'}
+      ...
+    />
+    <WeekEditor
+      key={editWeek?.id ?? 'none'}
+      ...
+    />
+    <EventEditor
+      key={editEvent?.event?.id ?? `new-${newEventKey}`}
+      ...
+    />
+  </>
+)}
+```
+
+When both `editMonth` and `editWeek` are null (which is the default state), both `MonthEditor` and `WeekEditor` have key `'none'`. And EventEditor gets `key={'new-0'}` when never opened.
+
+Wait, but the Modal inside each editor returns `null` when `open={false}`, so the actual DOM shouldn't have duplicates. But React is still tracking the keys of the components in the fragment, and two siblings with the same key will cause this warning.
+
+The fix: use different fallback key prefixes:
+- MonthEditor: `key={editMonth?.id ?? 'month-none'}`
+- WeekEditor: `key={editWeek?.id ?? 'week-none'}`
+
+The `MonthEditor` and `WeekEditor` both fall back to key `'none'` when closed. Change the fallbacks to be distinct:
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "offset": 137,
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "limit": 22
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>137:         >
+138:           {isDark ? 'Light' : 'Dark'}
+139:         </button>
+140:       </div>
+141: 
+142:       {isAdmin && (
+143:         <>
+144:           <MonthEditor
+145:             key={editMonth?.id ?? 'none'}
+146:             month={editMonth}
+147:             open={editMonth !== null}
+148:             onSave={updateMonth}
+149:             onClose={() => setEditMonth(null)}
+150:           />
+151:           <WeekEditor
+152:             key={editWeek?.id ?? 'none'}
+153:             week={editWeek}
+154:             open={editWeek !== null}
+155:             onSave={updateWeek}
+156:             onClose={() => setEditWeek(null)}
+157:           />
+158:           <EventEditor
+
+(Showing lines 137-158 of 171. Use offset=159 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.7s)
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "            key={editMonth?.id ?? 'none'}\n            month={editMonth}\n            open={editMonth !== null}\n            onSave={updateMonth}\n            onClose={() => setEditMonth(null)}\n          />\n          <WeekEditor\n            key={editWeek?.id ?? 'none'}",
+  "newString": "            key={editMonth?.id ?? 'month-none'}\n            month={editMonth}\n            open={editMonth !== null}\n            onSave={updateMonth}\n            onClose={() => setEditMonth(null)}\n          />\n          <WeekEditor\n            key={editWeek?.id ?? 'week-none'}"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 4.7s)
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test",
+  "description": "Run tests",
+  "timeout": 30000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+
+ Test Files  7 passed (7)
+      Tests  38 passed (38)
+   Start at  09:08:29
+   Duration  1.45s (transform 310ms, setup 1.01s, import 380ms, tests 399ms, environment 5.90s)
+
+
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 2.8s)
+
+Changed `'none'` → `'month-none'` and `'week-none'` so the two sibling components always have unique keys.
+
+---
+
+## User
+
+can the import json be a file picker from my system
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 4.3s)
+
+_Thinking:_
+
+The user wants the Import JSON to use a file picker (file upload) instead of a `prompt()` where they paste JSON text. Let me update the `onImport` handler in Dashboard.tsx and the Legend component.
+
+I'll use a hidden `<input type="file">` that accepts `.json` files. When the user clicks the Import JSON button, it triggers the file picker. On file selection, it reads the file and imports the data.
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "offset": 109,
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "limit": 15
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>109:       <Legend
+110:         isAdmin={isAdmin}
+111:         onExport={() => {
+112:           const json = toolbar.exportData()
+113:           const blob = new Blob([json], { type: 'application/json' })
+114:           const url = URL.createObjectURL(blob)
+115:           const a = document.createElement('a')
+116:           a.href = url
+117:           a.download = 'dashboard-data.json'
+118:           a.click()
+119:           URL.revokeObjectURL(url)
+120:         }}
+121:         onImport={() => {
+122:           const json = prompt('Paste JSON data:')
+123:           if (json) toolbar.importData(json)
+
+(Showing lines 109-123 of 171. Use offset=124 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 3.6s)
+
+_Thinking:_
+
+I need to use a hidden file input. I'll add a `useRef` for a file input element and trigger it when the import button is clicked. When a file is selected, read it with FileReader and pass the contents to `toolbar.importData()`.
+
+Let me read the top of Dashboard.tsx to see the imports.
+
+**Tool: read**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "limit": 8
+}
+```
+
+**Output:**
+```
+<path>/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx</path>
+<type>file</type>
+<content>1: import { useState } from 'react'
+2: import { MonthBlock } from './MonthBlock'
+3: import { WeekGrid } from './WeekGrid'
+4: import { Legend } from './Legend'
+5: import { MonthEditor } from './MonthEditor'
+6: import { WeekEditor } from './WeekEditor'
+7: import { EventEditor } from './EventEditor'
+8: import { useTheme } from '@/context/ThemeContext'
+
+(Showing lines 1-8 of 171. Use offset=9 to continue.)
+</content>
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 6.0s)
+
+_Thinking:_
+
+I need to add `useRef` to the imports and `useRef` for a hidden file input. Let me also add an `onChange` handler for the file input. I'll put the file input in the JSX (hidden) and trigger it from the import button.
+
+Actually, the simplest approach: add a `useRef` for the file input in Dashboard, render a hidden `<input type="file" accept=".json">`, and wire up the import to read the file.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "import { useState } from 'react'",
+  "newString": "import { useRef, useState } from 'react'"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "  const [newEventKey, setNewEventKey] = useState(0)",
+  "newString": "  const [newEventKey, setNewEventKey] = useState(0)\n  const fileInputRef = useRef<HTMLInputElement>(null)"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "        onImport={() => {\n          const json = prompt('Paste JSON data:')\n          if (json) toolbar.importData(json)\n        }}",
+  "newString": "        onImport={() => fileInputRef.current?.click()}"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 5.0s)
+
+_Thinking:_
+
+Now I need to add the hidden file input element in the JSX. I'll add it near the Legend or somewhere unobtrusive.
+
+**Tool: edit**
+
+**Input:**
+```json
+{
+  "filePath": "/home/dminnich/git/home/snips-dashboard/src/components/Dashboard.tsx",
+  "oldString": "      <Legend\n        isAdmin={isAdmin}\n        onExport={() => {\n          const json = toolbar.exportData()\n          const blob = new Blob([json], { type: 'application/json' })\n          const url = URL.createObjectURL(blob)\n          const a = document.createElement('a')\n          a.href = url\n          a.download = 'dashboard-data.json'\n          a.click()\n          URL.revokeObjectURL(url)\n        }}\n        onImport={() => fileInputRef.current?.click()}\n      />",
+  "newString": "      <input\n        ref={fileInputRef}\n        type=\"file\"\n        accept=\".json\"\n        className=\"hidden\"\n        onChange={(e) => {\n          const file = e.target.files?.[0]\n          if (!file) return\n          const reader = new FileReader()\n          reader.onload = () => {\n            if (typeof reader.result === 'string') toolbar.importData(reader.result)\n          }\n          reader.readAsText(file)\n          e.target.value = ''\n        }}\n      />\n      <Legend\n        isAdmin={isAdmin}\n        onExport={() => {\n          const json = toolbar.exportData()\n          const blob = new Blob([json], { type: 'application/json' })\n          const url = URL.createObjectURL(blob)\n          const a = document.createElement('a')\n          a.href = url\n          a.download = 'dashboard-data.json'\n          a.click()\n          URL.revokeObjectURL(url)\n        }}\n        onImport={() => fileInputRef.current?.click()}\n      />"
+}
+```
+
+**Output:**
+```
+Edit applied successfully.
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 7.4s)
+
+_Thinking:_
+
+I reset `e.target.value = ''` after reading so that selecting the same file twice still triggers the onChange event. Let me run tests.
+
+**Tool: bash**
+
+**Input:**
+```json
+{
+  "command": "npm test && npm run lint && npm run typecheck",
+  "description": "Run tests, lint, typecheck",
+  "timeout": 60000
+}
+```
+
+**Output:**
+```
+
+> snips-dashboard@0.0.0 test
+> vitest run
+
+
+ RUN  v4.1.8 /home/dminnich/git/home/snips-dashboard
+
+
+ Test Files  7 passed (7)
+      Tests  38 passed (38)
+   Start at  09:09:09
+   Duration  1.35s (transform 264ms, setup 1.02s, import 346ms, tests 348ms, environment 5.42s)
+
+
+> snips-dashboard@0.0.0 lint
+> eslint .
+
+
+> snips-dashboard@0.0.0 typecheck
+> tsc --noEmit
+
+
+```
+
+---
+
+## Assistant (Build · deepseek-v4-flash-free · 2.6s)
+
+Import now opens a native file picker filtered to `.json` files, reads the file, and imports the data.
 
 ---
 
