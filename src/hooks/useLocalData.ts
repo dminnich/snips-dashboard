@@ -43,7 +43,6 @@ function apiFetch(path: string, method: string, body?: unknown) {
 }
 
 export interface DevToolbar {
-  reset: () => void
   exportData: () => string
   importData: (json: string) => void
 }
@@ -115,11 +114,6 @@ export function useLocalData() {
     apiFetch(`/api/weeks/${weekId}/events/${eventId}`, 'DELETE').catch(() => {})
   }, [])
 
-  const reset = useCallback(() => {
-    setMonths(createDefaultMonths())
-    setWeeks(createDefaultWeeks())
-  }, [])
-
   const exportData = useCallback(() => {
     return JSON.stringify({ months, weeks }, null, 2)
   }, [months, weeks])
@@ -131,14 +125,14 @@ export function useLocalData() {
         if (data.months) setMonths(data.months)
         if (data.weeks) setWeeks(data.weeks)
         apiFetch('/api/data', 'PUT', data).catch(() => {})
-      } catch {
-        alert('Invalid JSON data')
+      } catch (err) {
+        throw new Error(`Invalid JSON data: ${(err as Error).message}`, { cause: err })
       }
     },
     [],
   )
 
-  const toolbar: DevToolbar = { reset, exportData, importData }
+  const toolbar: DevToolbar = { exportData, importData }
 
   return { months, weeks, updateMonth, updateWeek, addEvent, updateEvent, deleteEvent, toolbar }
 }

@@ -4,7 +4,8 @@ const path = require('path')
 
 const app = express()
 const PORT = process.env.PORT || 3000
-const DB_PATH = path.join(__dirname, 'data.db')
+const DATA_DIR = process.env.DATA_DIR || __dirname
+const DB_PATH = path.join(DATA_DIR, 'data.db')
 
 let db
 try {
@@ -76,18 +77,23 @@ app.get('/api/data', (req, res) => {
 
     res.json({ months, weeks: weeksWithEvents })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('GET /api/data', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 app.patch('/api/months/:id', (req, res) => {
   try {
     const { content, subtitle, specialEvents } = req.body
+    if (typeof content !== 'string' || content.length > 1_000_000) {
+      return res.status(400).json({ error: 'Invalid content' })
+    }
     db.prepare('UPDATE months SET content = ?, subtitle = ?, specialEvents = ? WHERE id = ?')
       .run(content ?? '', subtitle ?? '', specialEvents ?? '', req.params.id)
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('PATCH /api/months/:id', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -98,19 +104,27 @@ app.patch('/api/weeks/:id', (req, res) => {
       .run(subtitle ?? '', specialEvents ?? '', req.params.id)
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('PATCH /api/weeks/:id', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
 app.post('/api/weeks/:id/events', (req, res) => {
   try {
     const { id, groupName, headcount, housing, status } = req.body
+    if (typeof groupName !== 'string' || !groupName.trim()) {
+      return res.status(400).json({ error: 'groupName is required' })
+    }
+    if (groupName.length > 200) {
+      return res.status(400).json({ error: 'groupName too long' })
+    }
     const eventId = id || require('crypto').randomUUID()
     db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
       .run(eventId, req.params.id, groupName, headcount ?? 0, housing ?? '', status ?? 'pending')
     res.json({ id: eventId })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('POST /api/weeks/:id/events', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -119,7 +133,12 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
     const { groupName, headcount, housing, status } = req.body
     const sets = []
     const vals = []
-    if (groupName !== undefined) { sets.push('groupName = ?'); vals.push(groupName) }
+    if (groupName !== undefined) {
+      if (typeof groupName !== 'string' || !groupName.trim()) {
+        return res.status(400).json({ error: 'groupName must be a non-empty string' })
+      }
+      sets.push('groupName = ?'); vals.push(groupName)
+    }
     if (headcount !== undefined) { sets.push('headcount = ?'); vals.push(headcount) }
     if (housing !== undefined) { sets.push('housing = ?'); vals.push(housing) }
     if (status !== undefined) { sets.push('status = ?'); vals.push(status) }
@@ -128,7 +147,8 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
     db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('PATCH /api/weeks/:wid/events/:eid', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -137,7 +157,8 @@ app.delete('/api/weeks/:wid/events/:eid', (req, res) => {
     db.prepare('DELETE FROM events WHERE id = ?').run(req.params.eid)
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('DELETE /api/weeks/:wid/events/:eid', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -170,7 +191,8 @@ app.put('/api/data', (req, res) => {
     tx()
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    console.error('PUT /api/data', err)
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

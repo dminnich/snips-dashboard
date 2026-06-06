@@ -97,19 +97,29 @@ describe('useLocalData', () => {
     expect(w1?.events).toHaveLength(0)
   })
 
-  it('reset restores default state', () => {
-    const { result } = renderHook(() => useLocalData())
-    act(() => result.current.updateMonth('january', { content: 'Changed' }))
-    act(() => result.current.toolbar.reset())
-    const jan = result.current.months.find((m) => m.id === 'january')
-    expect(jan?.content).toBe('')
-  })
-
   it('exportData returns valid JSON with months and weeks', () => {
     const { result } = renderHook(() => useLocalData())
     const json = result.current.toolbar.exportData()
     const parsed = JSON.parse(json)
     expect(parsed).toHaveProperty('months')
     expect(parsed).toHaveProperty('weeks')
+  })
+
+  it('importData throws on invalid JSON', () => {
+    const { result } = renderHook(() => useLocalData())
+    expect(() => result.current.toolbar.importData('not json')).toThrow('Invalid JSON data')
+  })
+
+  it('importData applies months and weeks from valid JSON', () => {
+    const { result } = renderHook(() => useLocalData())
+    const payload = JSON.stringify({
+      months: [{ id: 'january', name: 'January', content: 'imported', subtitle: '', specialEvents: '' }],
+      weeks: [{ id: 'week-1', weekNumber: 1, subtitle: 'imported week', specialEvents: '', events: [] }],
+    })
+    act(() => { result.current.toolbar.importData(payload) })
+    const jan = result.current.months.find((m) => m.id === 'january')
+    expect(jan?.content).toBe('imported')
+    const w1 = result.current.weeks.find((w) => w.id === 'week-1')
+    expect(w1?.subtitle).toBe('imported week')
   })
 })

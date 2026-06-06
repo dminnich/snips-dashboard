@@ -18,6 +18,11 @@ npm run lint           # ESLint
 npm run format         # Prettier format all source files
 npm run typecheck      # TypeScript check without emit
 
+# Docker / Podman
+docker compose up -d --build     # Build and start
+podman compose up -d --build     # Same with Podman
+podman unshare chown -R 999:999 data  # Required once for rootless Podman
+
 # Tests (Vitest + React Testing Library)
 npm test                          # Run all tests
 npm run test:watch                # Watch mode
@@ -91,13 +96,8 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
 - No Redux/Zustand unless complexity demands it
 
 ### Error Handling
-- Return early for loading/error/empty states:
-  ```tsx
-  if (isLoading) return <LoadingSpinner />
-  if (error) return <ErrorMessage message={error} />
-  if (!events.length) return <EmptyState message="No events" />
-  ```
 - Editor modals: use `key` prop on component to force fresh state, never `useEffect` for prop→state sync
+- `useLocalData.importData` throws on invalid JSON — callers should handle the rejection
 
 ### Styling (Tailwind v4)
 - Dark theme base: `bg-slate-900 text-white`
@@ -118,7 +118,7 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
 - `render` from `@testing-library/react`
 - Auto-cleanup via `afterEach(cleanup)` in setup file
 - Prefer `screen.getByRole` / `getByText`; `getByTestId` as last resort
-- Mock contexts in component tests (e.g. `useTheme` for Dashboard tests)
+- Mock hooks/contexts in component tests (e.g. `useTheme`, `useLocalData`)
 - Hook tests: use `renderHook` + `act` from `@testing-library/react`
 
 ### Git
@@ -130,6 +130,17 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
 - SQLite via better-sqlite3, auto-seeds defaults on first run
 - Run with `node server.cjs` or `npm start`
 - Port configurable via `PORT` env var (default 3000)
+- Data directory configurable via `DATA_DIR` env var (default: same dir as server.cjs)
+- Validation: `groupName` required + max 200 chars; `content` max 1MB
+- Server errors logged internally, generic "Internal server error" returned to client
+
+### Docker
+- Multi-stage Dockerfile: build stage installs deps + builds `dist/`, runtime stage copies only what's needed
+- Runs as non-root user (uid 999) for rootless Podman compatibility
+- Healthcheck hits `/api/data`
+- Bind mount `./data:/data` persists SQLite database across container rebuilds
+- `DATA_DIR=/data` env var tells the server where to find the database
+- Use `podman unshare chown -R 999:999 data` once before first run to fix host-side ownership
 
 ### API Endpoints
 | Method | Path | Purpose |

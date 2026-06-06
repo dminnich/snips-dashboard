@@ -12,9 +12,13 @@ dist
 dist-ssr
 *.local
 
-# SQLite database
+# SQLite database (bind mount target)
+data/
 data.db
 data.db-*
+
+# Reference images
+reference/
 
 # Editor directories and files
 .vscode/*
