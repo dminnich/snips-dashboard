@@ -1,0 +1,994 @@
+This is the conversation I had with the AI and what it gave me back.
+Conversation with Gemini=20
+I want to create an app to manage our &quot;Mission Team Board&quot;. This app will l=
+ink to my apple calendar and it will be shared with other in our nonprofit.=
+ We want to be able to write copy in each month that is fix, with January t=
+hrough May on one side of the board, August though December on the other si=
+de of the board. We would have the 10 weeks of summer ministry in the middl=
+e of the board that we can also edit group in each week. We desire to be ab=
+le to edit the color and make the screen full view on the tv where this wil=
+l be placed on a monitor.=20
+
+
+This sounds like a fantastic project! Having a dedicated, high-visibility d=
+ashboard for your nonprofit&#39;s mission team is going to make tracking your s=
+ummer ministry and year-round copy so much easier. Building a custom layout=
+ like this=E2=80=94especially with that specific &quot;split-year&quot; design and a =
+central 10-week summer focus=E2=80=94is totally doable.
+Since you need a custom UI, a specific layout, and real-time Apple Calendar=
+ integration, building this as a web application is your best bet. You can =
+easily open a web app on any monitor, throw it into full-screen mode (F11 o=
+n Windows or Cmd+Ctrl+F on Mac), and customize the colors to your heart&#39;s c=
+ontent.
+Here is a blueprint of how you can build or assemble this app, along with t=
+he technical pieces you&#39;ll need.
+=F0=9F=97=BA=EF=B8=8F The Layout &amp; Architecture
+To achieve the exact look you want for the monitor, you&#39;ll want to use a CS=
+S Grid layout. This will keep the screen fixed, organized, and perfectly fi=
+tted to a 1080p or 4K TV screen without requiring scrolling.
+Left Column (Non-Summer)=09Center Column (Summer Ministry)=09Right Column (=
+Non-Summer)
+January (Editable copy)=09Week 1 (Group/Calendar events)=09August (Editable=
+ copy)
+February (Editable copy)=09Week 2 (Group/Calendar events)=09September (Edit=
+able copy)
+March (Editable copy)=09Week 3 (Group/Calendar events)=09October (Editable =
+copy)
+April (Editable copy)=09...=09November (Editable copy)
+May (Editable copy)=09Week 10 (Group/Calendar events)=09December (Editable =
+copy)
+
+=F0=9F=92=A1 Note on June/July: Since June and July typically cover those 1=
+0 weeks of summer, they are omitted from the side columns to give the cente=
+r column maximum real estate.
+=F0=9F=9B=A0=EF=B8=8F Technology Stack Recommendations
+If you have a developer on your team (or want to build this using low-code/=
+no-code tools), here are the best paths forward:
+Option 1: The Custom Web App (Recommended)
+Building a simple frontend web app gives you total control over the &quot;TV Ful=
+l View&quot; mode and custom colors.
+Frontend: React.js, Vue.js, or HTML/Tailwind CSS. Tailwind makes color cust=
+omization and grid layouts incredibly fast.
+Backend/Database: Firebase or Supabase. This will store the &quot;fixed copy&quot; te=
+xt for each month and the groups assigned to the 10 weeks of summer so that=
+ when one teammate edits it, it updates on the TV instantly.
+Option 2: The No-Code/Low-Code Route
+If you don&#39;t want to code from scratch:
+Budibase or Appsmith: These are open-source internal tool builders. They al=
+low you to drag and drop a custom grid layout, connect to databases, and cr=
+eate custom color themes.
+Notion (with a twist): You can set up a Notion page with this exact layout =
+using columns, but it won&#39;t feel quite as much like a dedicated, locked-dow=
+n &quot;TV Dashboard.&quot;
+=F0=9F=93=85 Integrating Apple Calendar
+Apple Calendar (iCloud) can be tricky to integrate directly into custom app=
+s because Apple&#39;s API ecosystem is heavily locked down. However, you have t=
+wo great workarounds to get those live calendar events onto your center col=
+umn:
+The Public iCloud Link (Easiest): In your Apple Calendar app, you can make =
+the specific &quot;Mission Team&quot; calendar public. This generates an .ics link. Y=
+our web app can read this link every 5 minutes and populate the correspondi=
+ng summer weeks automatically.
+The Calendar Bridge (More Secure): Use a tool like Make.com or Zapier. You =
+can set up a workflow: &quot;When a new event is added to Apple Calendar, send i=
+t to our Mission Board database.&quot; This allows you to filter and format the =
+data perfectly before it hits the TV screen.
+=F0=9F=93=BA Key Features for the TV Monitor
+To make sure this looks great on the wall, keep these design principles in =
+mind:
+Admin vs. Display Mode: Create an &quot;Admin&quot; login where staff can type in the=
+ monthly copy or edit summer groups. The TV itself should just load a &quot;View=
+ Only&quot; URL so nobody accidentally triggers an on-screen keyboard on the mon=
+itor.
+Dark Mode / Color Customization: Since it=E2=80=99s on a monitor all day, i=
+mplement a toggle for a dark background. Bright white screens can cause eye=
+ strain in an office and wash out colors on cheap displays.
+Auto-Refresh: Ensure the app uses WebSockets (built into Firebase/Supabase)=
+ or an auto-refresh script so that updates appear on the monitor without so=
+meone needing to plug in a mouse and hit reload.
+Are you planning to write the code for this yourself (or with a volunteer),=
+ or are you looking for a platform where you can build this without coding?
+
+
+
+
+
+Seeing the actual whiteboard makes everything click! This is a beautifully =
+organized, high-density system.
+Looking at your layout, my previous suggestion of a 3-column layout actuall=
+y won&#39;t match your physical board. You have a 5-column setup where the 10 w=
+eeks of summer are split into two rows in the middle: Weeks 1=E2=80=935 on =
+top, and Weeks 6=E2=80=9310 stacked right below them.
+To translate this exactly to a full-screen TV dashboard, you will want a 7-=
+column grid layout.
+=F0=9F=93=90 The Digital Grid Blueprint
+To fit a standard 16:9 TV screen perfectly without scrolling, your web app&#39;=
+s CSS grid should be structured like this:
+Column 1 (Left)=09Column 2=09Column 3=09Column 4=09Column 5=09Column 6=09Co=
+lumn 7 (Right)
+JANUARY=09
+Week 1
+
+(May 31-June 5)
+Week 2
+
+(June 7-12)
+Week 3
+
+(June 14-19)
+Week 4
+
+(June 21-26)
+Week 5
+
+(June 28-July 3)
+AUGUST
+FEBRUARY=09=09=09=09=09=09SEPTEMBER
+MARCH=09
+Week 6
+
+(July 5-10)
+Week 7
+
+(July 12-17)
+Week 8
+
+(July 19-24)
+Week 9
+
+(July 26-31)
+Week 10
+
+(Aug 2-7)
+OCTOBER
+APRIL=09=09=09=09=09=09NOVEMBER
+MAY=09=09=09=09=09=09DECEMBER
+
+How the Columns Span:
+The Outer Columns (1 &amp; 7): Divided vertically into 5 equal rows for each mo=
+nth.
+The Center Columns (2 through 6): Divided vertically into 2 massive rows. T=
+he top row holds Weeks 1=E2=80=935, and the bottom row holds Weeks 6=E2=80=
+=9310. This gives you tons of vertical space in each week to list multiple =
+groups, dates, building assignments (like your B1, B2 notes), and headcount=
+ numbers.
+=F0=9F=92=A1 Translating Your Whiteboard Features to Digital
+Based on your handwritten notes, here is how we can supercharge this for a =
+TV display:
+1. Multi-Group Stacking (The Center Columns)
+In Week 1, you have Jones Ave B.C. and Grace Mills River Church stacked. In=
+ a digital app, each week block should be a container where you can click &quot;=
+Add Group.&quot; Each group can be its own &quot;card&quot; inside that week, containing f=
+ields for:
+Group Name (e.g., Brushy Creek)
+Headcount (e.g., 50)
+Housing/Building Assignment (e.g., B1 &amp; B2)
+2. Apple Calendar Sync Layer
+Because you want Apple Calendar integration, the app can automatically pull=
+ events. For example, if you add an event to Apple Calendar called &quot;Spain W=
+edding [Week 4]&quot;, the app can read that tag and automatically display it in=
+ the Week 4 column on the TV screen.
+3. Smart Color Coding &amp; Statuses
+You have colors indicating different things (like green for certain groups,=
+ red circles, and orange boxes for &quot;OPEN&quot; status).
+We can create an admin toggle for status: Open, Pending, Full, or Mission.
+Changing the status instantly changes the card&#39;s background or border color=
+ on the TV. For instance, an &quot;OPEN&quot; slot can flash a subtle orange border s=
+o your team instantly sees availability from across the room.
+4. Tiny Text &amp; Birthdays
+I spotted a tiny &quot;Samantha&#39;s Birthday&quot; at the bottom of February! In the di=
+gital version, we can include a dedicated &quot;Important Dates&quot; or &quot;Birthdays&quot; =
+micro-section at the bottom of each monthly box so those sweet details don&#39;=
+t get lost.
+=F0=9F=9A=80 Recommended Next Step
+To get this exact grid onto a TV screen with a color picker and text editin=
+g, a custom coded React/Tailwind web app or a low-code tool like Budibase i=
+s definitely the way to go.
+If you are using a developer or a tech-savvy volunteer to build this, I can=
+ provide the exact HTML/Tailwind CSS layout code for this 7-column grid to =
+hand right to them. Would you like that code template?
+
+
+
+
+If you look again, there is a column on the right that is January through M=
+ay, 10 weeks in the middle, and on the right side there is another column w=
+ith August through December listed. All of these need to be able to be edit=
+ed=20
+
+Ah, I see it clearly now=E2=80=94thank you for the correction! Looking clos=
+ely at the physical alignment on the board, the months on the left and righ=
+t actually map perfectly across from each other, framing the summer weeks r=
+ight in the center.
+To get this exact setup onto a full-screen TV monitor, we will structure it=
+ as a 3-column main layout, where the massive middle column splits into a g=
+rid for the 10 weeks of summer. This layout guarantees that everything stay=
+s fixed, aligned, and beautifully proportioned for a 16:9 widescreen TV wit=
+hout any scrolling.
+=F0=9F=93=90 The Corrected 3-Column TV Grid
+Here is exactly how the digital board will be structured. Every single box =
+shown here will be interactive and editable for your team.
++------------------+-------------------------------------------------------=
+------+------------------+
+|                  |                           SUMMER                      =
+      |                  |
+| JANUARY          |  Week 1      Week 2      Week 3      Week 4      Week =
+5     | AUGUST           |
+| (Editable Text)  |  (Group)     (Group)     (Group)     (Group)     (Grou=
+p)    | (Editable Text)  |
++------------------+-------------------------------------------------------=
+------+------------------+
+| FEBRUARY         |                                                       =
+      | SEPTEMBER        |
+| (Editable Text)  |               [ Blank Spacer / Middle Row ]           =
+      | (Editable Text)  |
++------------------+-------------------------------------------------------=
+------+------------------+
+| MARCH            |  Week 6      Week 7      Week 8      Week 9      Week =
+10    | OCTOBER          |
+| (Editable Text)  |  (Group)     (Group)     (Group)     (Group)     (Grou=
+p)    | (Editable Text)  |
++------------------+-------------------------------------------------------=
+------+------------------+
+| APRIL            |                                                       =
+      | NOVEMBER         |
+| (Editable Text)  |               [ Blank Spacer / Middle Row ]           =
+      | (Editable Text)  |
++------------------+-------------------------------------------------------=
+------+------------------+
+| MAY              |                                                       =
+      | DECEMBER         |
+| (Editable Text)  |               [ Blank Spacer / Middle Row ]           =
+      | (Editable Text)  |
++------------------+-------------------------------------------------------=
+------+------------------+
+Layout Breakdown for the Screen:
+Left Column (20% screen width): 5 stacked rows for January through May.
+Right Column (20% screen width): 5 stacked rows for August through December=
+.
+Center Column (60% screen width): This area matches your board&#39;s physical a=
+lignment:
+The Top Row spans across the center to hold Weeks 1=E2=80=935.
+The Third Row spans across the center to hold Weeks 6=E2=80=9310.
+Rows 2, 4, and 5 in the center can either be left as open workspace/notes a=
+reas or formatted to let the summer weeks stretch vertically for maximum wr=
+iting room.
+=F0=9F=9B=A0=EF=B8=8F Features for the Digital Dashboard
+Since every single section needs to be fully editable, here is how the user=
+ experience will work for your staff:
+=F0=9F=93=9D Click-to-Edit Side Columns (Months)
+For the January=E2=80=93May and August=E2=80=93December blocks, clicking on=
+ a month will open a text editor. You can type out paragraph text, bullet p=
+oints (like your October: InterVarsity-Duke notes), or use color-coded text=
+ tags. Once saved, it locks into place on the big TV screen.
+=F0=9F=91=A5 Interactive Group Cards (Summer Weeks)
+Instead of just a blank text box for the summer weeks, each week block (1=
+=E2=80=9310) will allow you to click &quot;Add Group&quot;. You can input:
+Group Name, Headcount, and Housing (B1, B2).
+A status color toggle (e.g., Green for booked, Red for &quot;OPEN&quot;, Orange for t=
+entative).
+=F0=9F=94=84 The Live Apple Calendar Link
+Your summer weeks can automatically display a small badge if there is a con=
+flicting or relevant event on your Apple Calendar (like the Spain Wedding y=
+ou have noted in Week 4). This saves your team from double-booking slots.
+=F0=9F=92=BB Ready-to-Use Code Template
+If you have a developer, a volunteer, or are using a low-code tool, here is=
+ the exact HTML and Tailwind CSS layout structure to build this exact board=
+. It includes custom colors and a full-screen layout.
+HTML
+
+
+&lt;div class=3D&quot;w-screen h-screen bg-slate-900 text-white p-4 grid grid-cols-=
+5 gap-4 overflow-hidden&quot;&gt;
+ =20
+  &lt;div class=3D&quot;col-span-1 grid grid-rows-5 gap-4&quot;&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;JANUARY=
+&lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;FEBRUAR=
+Y&lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;MARCH&lt;/=
+div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;APRIL&lt;/=
+div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;MAY&lt;/di=
+v&gt;
+  &lt;/div&gt;
+
+  &lt;div class=3D&quot;col-span-3 grid grid-rows-5 gap-4&quot;&gt;
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 1=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 2=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 3=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 4=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 5=
+&lt;/div&gt;
+    &lt;/div&gt;
+   =20
+    &lt;div class=3D&quot;bg-slate-800/40 rounded border border-dashed border-slate=
+-700&quot;&gt;&lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 6=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 7=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 8=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 9=
+&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-blue-500&quot;&gt;Week 1=
+0&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800/40 rounded border border-dashed border-slate=
+-700&quot;&gt;&lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800/40 rounded border border-dashed border-slate=
+-700&quot;&gt;&lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=3D&quot;col-span-1 grid grid-rows-5 gap-4&quot;&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;AUGUST&lt;=
+/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;SEPTEMB=
+ER&lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;OCTOBER=
+&lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;NOVEMBE=
+R&lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700&quot;&gt;DECEMBE=
+R&lt;/div&gt;
+  &lt;/div&gt;
+
+&lt;/div&gt;
+How do you plan on hosting or setting up the editing dashboard for your sta=
+ff=E2=80=94will they be logging into a website on their computers to update=
+ the text, or are you hoping to use an iPad/tablet next to the monitor?
+
+
+
+
+In the center section, divide it into 8 sections. Row 1 and 5 will contain =
+the Weeks and can be 20% thinner than the other 6 center rows.=20
+
+Got it! That makes total sense. By breaking the center into 8 distinct rows=
+, you get a dedicated header row for the calendar dates (Rows 1 and 5), lea=
+ving the other 6 rows perfectly aligned with your monthly blocks to use for=
+ groups, details, housing, or general summer notes.
+Making Rows 1 and 5 thinner is a great design choice for a TV screen becaus=
+e it maximizes the actual &quot;writing room&quot; for your data.
+Here is the updated blueprint and the exact frontend code to achieve this p=
+recise 8-row center grid.
+=F0=9F=93=90 The 8-Row Center Grid Layout
+The center column is now divided into 8 equal-width horizontal tracks, but =
+we use custom sizing (0.8fr for the week headers and 1fr for the content ro=
+ws) to make the week labels 20% thinner.
++------------------+-------------------------------------------------------=
+------+------------------+
+|                  | [Row 1 - THIN]  Week 1    Week 2    Week 3    Week 4  =
+  Week 5  |                  |
+| JANUARY          +-------------------------------------------------------=
+------+ AUGUST           |
+|                  | [Row 2]         Group     Group     Group     Group   =
+  Group   |                  |
++------------------+-------------------------------------------------------=
+------+------------------+
+| FEBRUARY         | [Row 3]         Group     Group     Group     Group   =
+  Group   | SEPTEMBER        |
++------------------+-------------------------------------------------------=
+------+------------------+
+| MARCH            | [Row 4]         Group     Group     Group     Group   =
+  Group   | OCTOBER          |
++------------------+-------------------------------------------------------=
+------+------------------+
+|                  | [Row 5 - THIN]  Week 6    Week 7    Week 8    Week 9  =
+  Week 10 |                  |
+| APRIL            +-------------------------------------------------------=
+------+ NOVEMBER         |
+|                  | [Row 6]         Group     Group     Group     Group   =
+  Group   |                  |
++------------------+-------------------------------------------------------=
+------+------------------+
+| MAY              | [Row 7]         Group     Group     Group     Group   =
+  Group   | DECEMBER         |
+|                  +-------------------------------------------------------=
+------+                  |
+|                  | [Row 8]         Group     Group     Group     Group   =
+  Group   |                  |
++------------------+-------------------------------------------------------=
+------+------------------+
+=F0=9F=92=BB Updated HTML &amp; Tailwind CSS Code
+This code template sets up the exact grid proportions you requested. It use=
+s CSS grid row sizing (grid-rows-[0.8fr_1fr_1fr_1fr_0.8fr_1fr_1fr_1fr]) to =
+flawlessly lock down that 20% height reduction on Rows 1 and 5.
+HTML
+
+
+&lt;div class=3D&quot;w-screen h-screen bg-slate-900 text-white p-4 grid grid-cols-=
+5 gap-4 overflow-hidden&quot;&gt;
+ =20
+  &lt;div class=3D&quot;col-span-1 grid grid-rows-5 gap-4&quot;&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-blue-400&quot;&gt;JANUARY&lt;/span&gt;
+      &lt;div class=3D&quot;text-sm text-slate-400 overflow-hidden&quot;&gt;Editable monthl=
+y copy goes here...&lt;/div&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-blue-400&quot;&gt;FEBRUARY&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-blue-400&quot;&gt;MARCH&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-blue-400&quot;&gt;APRIL&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-blue-400&quot;&gt;MAY&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=3D&quot;col-span-3 grid grid-rows-[0.8fr_1fr_1fr_1fr_0.8fr_1fr_1fr_=
+1fr] gap-2&quot;&gt;
+   =20
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2 text-center font-bold text-sm bg-s=
+late-800/50 rounded items-center border border-slate-700&quot;&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 1 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;May 31-June 5&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 2 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 7-12&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 3 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 14-19&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 4 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 21-26&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 5 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 28-July 3&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+   =20
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Jones Ave B.C. (20)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Big Stevens Creek&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Encounter Church&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Brushy Creek (50)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400 font-bold&quot;&gt;Easley FBC (30)&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;Grace Mills (25)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-amber-500 border-amber-500 bg-amber-500/10&quot;&gt;OPEN *West Point&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Spain Wedding&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-amber-500 font-bold&quot;&gt;OPEN&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Brunson Family&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;12-13 Ben Here&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;20-21 Ben Here&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2 text-center font-bold text-sm bg-s=
+late-800/50 rounded items-center border border-slate-700&quot;&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 6 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 5-10&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 7 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 12-17&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 8 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 19-24&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 9 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 26-31&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 10 &lt;span class=3D&quot;block text-xs fon=
+t-normal text-slate-400&quot;&gt;Aug 2-7&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Radiant Church&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;3 Rivers (50)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-400&quot;&gt;Oakwood BC (20)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Faith Landmarks&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-400&quot;&gt;Calvary BC (32)&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;(50) B1 &amp; B2&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400 font-bold&quot;&gt;FULL&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Goochland (25)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;Pelham FBC (25)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-400&quot;&gt;B2&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-500&quot;&gt;Liberty BC (Offsite)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-orange-500 bg-or=
+ange-500/10 text-xs text-orange-400 text-center&quot;&gt;East View Lodging Only&lt;/di=
+v&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=3D&quot;col-span-1 grid grid-rows-5 gap-4&quot;&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-purple-400&quot;&gt;AUGUST&lt;/span&gt;
+      &lt;div class=3D&quot;text-xs text-amber-400 font-semibold&quot;&gt;* See Week 10 *&lt;/=
+div&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-purple-400&quot;&gt;SEPTEMBER&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-purple-400&quot;&gt;OCTOBER&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-purple-400&quot;&gt;NOVEMBER&lt;/span&gt;
+    &lt;/div&gt;
+    &lt;div class=3D&quot;bg-slate-800 p-3 rounded border border-slate-700 flex fle=
+x-col justify-between&quot;&gt;
+      &lt;span class=3D&quot;font-bold text-purple-400&quot;&gt;DECEMBER&lt;/span&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+&lt;/div&gt;
+=F0=9F=8E=A8 Color &amp; Styling Features Applied:
+The grid-rows-[0.8fr_..._0.8fr_...] Rule: This is the CSS magic that makes =
+Rows 1 and 5 exactly 20% thinner than Rows 2, 3, 4, 6, 7, and 8.
+Widescreen Perfect: The whole thing wraps in w-screen h-screen overflow-hid=
+den which locks it perfectly onto a TV display without ever creating a scro=
+llbar.
+Placeholder Data: I populated a few fields using the actual names from your=
+ whiteboard photograph (like Goochland, East View Lodging Only, and Easley =
+FBC) to show you exactly how clean the text alignment looks.
+Since you mentioned you want to edit the colors of this board on the fly, w=
+ould you like to see how we can add a simple color-picker menu to the edit =
+screen so staff can change text/border colors without touching code?
+
+
+
+
+Can you also center the names of the months in the left and right column? I=
+ will need space in each month box as well to place the group that is comin=
+g that week as well.=20
+
+Here is the updated layout. The month names are now perfectly centered both=
+ horizontally and vertically inside their boxes.
+To give you the exact structure you need for the data, each monthly box now=
+ features a split-screen layout: the top section clearly highlights the cen=
+tered month name, leaving the remaining space open to display incoming grou=
+ps or editable custom notes.
+=F0=9F=92=BB Updated HTML &amp; Tailwind CSS Code
+This code ensures that everything fits a 16:9 TV screen perfectly, utilizin=
+g a flexible flexbox structure inside the monthly boxes to give you maximum=
+ space for writing group info.
+HTML
+
+
+&lt;div class=3D&quot;w-screen h-screen bg-slate-900 text-white p-4 grid grid-cols-=
+5 gap-4 overflow-hidden&quot;&gt;
+ =20
+  &lt;div class=3D&quot;col-span-1 grid grid-rows-5 gap-4&quot;&gt;
+   =20
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-blue-40=
+0 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        January
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto sp=
+ace-y-1&quot;&gt;
+        &lt;div class=3D&quot;bg-slate-900/40 p-1 rounded border border-slate-700/5=
+0 font-semibold text-emerald-400&quot;&gt;Youth Winter Retreat (45)&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-blue-40=
+0 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        February
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;
+        &lt;div class=3D&quot;text-slate-500 italic text-center pt-2&quot;&gt;Samantha&#39;s Bi=
+rthday&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-blue-40=
+0 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        March
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;&lt;=
+/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-blue-40=
+0 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        April
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;&lt;=
+/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-blue-40=
+0 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        May
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;&lt;=
+/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=3D&quot;col-span-3 grid grid-rows-[0.8fr_1fr_1fr_1fr_0.8fr_1fr_1fr_=
+1fr] gap-2&quot;&gt;
+   =20
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2 text-center font-bold text-sm bg-s=
+late-800/50 rounded items-center border border-slate-700&quot;&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 1 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;May 31-June 5&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 2 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 7-12&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 3 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 14-19&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 4 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 21-26&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 5 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;June 28-July 3&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+   =20
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Jones Ave B.C. (20)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Big Stevens Creek&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Encounter Church&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;Brushy Creek (50)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400 font-bold&quot;&gt;Easley FBC (30)&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;Grace Mills (25)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-amber-500 bg-amb=
+er-500/10 text-xs text-amber-500&quot;&gt;OPEN *West Point&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Spain Wedding&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-amber-500 font-bold&quot;&gt;OPEN&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Brunson Family&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;12-13 Ben Here&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;20-21 Ben Here&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2 text-center font-bold text-sm bg-s=
+late-800/50 rounded items-center border border-slate-700&quot;&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 6 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 5-10&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 7 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 12-17&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 8 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 19-24&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 9 &lt;span class=3D&quot;block text-xs font=
+-normal text-slate-400&quot;&gt;July 26-31&lt;/span&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;text-pink-400&quot;&gt;Week 10 &lt;span class=3D&quot;block text-xs fon=
+t-normal text-slate-400&quot;&gt;Aug 2-7&lt;/span&gt;&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Radiant Church&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;3 Rivers (50)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-400&quot;&gt;Oakwood BC (20)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Faith Landmarks&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-400&quot;&gt;Calvary BC (32)&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;(50) B1 &amp; B2&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400 font-bold&quot;&gt;FULL&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-emerald-400&quot;&gt;Goochland (25)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-orange-400&quot;&gt;Pelham FBC (25)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-400&quot;&gt;B2&lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;grid grid-cols-5 gap-2&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s text-slate-500&quot;&gt;Liberty BC (Offsite)&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-orange-500 bg-or=
+ange-500/10 text-xs text-orange-400 text-center&quot;&gt;East View Lodging Only&lt;/di=
+v&gt;
+      &lt;div class=3D&quot;bg-slate-800 p-2 rounded border border-slate-700 text-x=
+s&quot;&gt;&lt;/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+  &lt;div class=3D&quot;col-span-1 grid grid-rows-5 gap-4&quot;&gt;
+   =20
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-purple-=
+400 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        August
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;
+        &lt;div class=3D&quot;text-amber-400 font-semibold text-center&quot;&gt;* See Week =
+10 *&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-purple-=
+400 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        September
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto sp=
+ace-y-1&quot;&gt;
+        &lt;div class=3D&quot;bg-slate-900/40 p-1 rounded border border-slate-700/5=
+0 text-orange-400 font-semibold&quot;&gt;4-6 Aposento Alto (20)&lt;/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-purple-=
+400 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        October
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto sp=
+ace-y-1&quot;&gt;
+        &lt;div class=3D&quot;text-amber-500 font-semibold&quot;&gt;2-4 InterVarsity-Duke (=
+50)&lt;/div&gt;
+        &lt;div class=3D&quot;text-emerald-400 font-semibold&quot;&gt;14-18 Radiant Church&lt;=
+/div&gt;
+      &lt;/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-purple-=
+400 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        November
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;&lt;=
+/div&gt;
+    &lt;/div&gt;
+
+    &lt;div class=3D&quot;bg-slate-800 rounded border border-slate-700 flex flex-co=
+l overflow-hidden&quot;&gt;
+      &lt;div class=3D&quot;bg-slate-700/50 py-2 text-center font-bold text-purple-=
+400 border-b border-slate-700 uppercase tracking-wider&quot;&gt;
+        December
+      &lt;/div&gt;
+      &lt;div class=3D&quot;p-2 flex-grow text-xs text-slate-300 overflow-y-auto&quot;&gt;&lt;=
+/div&gt;
+    &lt;/div&gt;
+  &lt;/div&gt;
+
+&lt;/div&gt;
+=F0=9F=9B=A0=EF=B8=8F Design Breakdown
+text-center uppercase tracking-wider: This completely centers the month nam=
+es horizontally, cleans up the text presentation, and scales nicely across =
+different display formats.
+bg-slate-700/50 &amp; border-b Header Structure: This creates a clean &quot;sticky s=
+tyle&quot; top banner for the month name inside each block, separating it from t=
+he lower scratchpad workspace.
+flex-grow overflow-y-auto Container: This ensures that the lower portion of=
+ each month box acts as an uninhibited dropzone for incoming group labels, =
+dates, or overflow text while preserving the screen&#39;s strict geometry.
+
+
+
+
+Can you show me a view of this displayed=20
+
+Here is how this custom grid layout will look when displayed on your widesc=
+reen TV monitor. It maximizes the screen space to keep all 12 months and 10=
+ summer weeks completely visible at the same time without needing to scroll=
+.
++--------------------------------------------------------------------------=
+-----------------------------+
+|  JANUARY          | WEEK 1      WEEK 2      WEEK 3      WEEK 4      WEEK =
+5        |  AUGUST           |
+|  [Centered Name]  | (May 31)    (June 7)    (June 14)   (June 21)   (June=
+ 28)     |  [Centered Name]  |
+| ----------------- | -----------------------------------------------------=
+---- | ----------------- |
+|  (Group / Copy    |  Group Info  Group Info  Group Info  Group Info  Grou=
+p Info   |  (Group / Copy    |
+|   Space Area)     |                                                      =
+     |   Space Area)     |
++-------------------+------------------------------------------------------=
+-----+-------------------+
+|  FEBRUARY         |                                                      =
+     |  SEPTEMBER        |
+|  [Centered Name]  |  Group Info  Group Info  Group Info  Group Info  Grou=
+p Info   |  [Centered Name]  |
+| ----------------- |                                                      =
+     | ----------------- |
+|  (Group / Copy)   |                                                      =
+     |  (Group / Copy)   |
++-------------------+------------------------------------------------------=
+-----+-------------------+
+|  MARCH            |                                                      =
+     |  OCTOBER          |
+|  [Centered Name]  |  Group Info  Group Info  Group Info  Group Info  Grou=
+p Info   |  [Centered Name]  |
+| ----------------- |                                                      =
+     | ----------------- |
+|  (Group / Copy)   |------------------------------------------------------=
+-----|  (Group / Copy)   |
++-------------------| WEEK 6      WEEK 7      WEEK 8      WEEK 9      WEEK =
+10       +-------------------+
+|  APRIL            | (July 5)    (July 12)   (July 19)   (July 26)   (Aug =
+2)       |  NOVEMBER         |
+|  [Centered Name]  | -----------------------------------------------------=
+---- |  [Centered Name]  |
+| ----------------- |  Group Info  Group Info  Group Info  Group Info  Grou=
+p Info   | ----------------- |
+|  (Group / Copy)   |                                                      =
+     |  (Group / Copy)   |
++-------------------+------------------------------------------------------=
+-----+-------------------+
+|  MAY              |  Group Info  Group Info  Group Info  Group Info  Grou=
+p Info   |  DECEMBER         |
+|  [Centered Name]  |                                                      =
+     |  [Centered Name]  |
+| ----------------- |                                                      =
+     | ----------------- |
+|  (Group / Copy)   |  Group Info  Group Info  Group Info  Group Info  Grou=
+p Info   |  (Group / Copy)   |
++--------------------------------------------------------------------------=
+-----------------------------+
+=F0=9F=93=BA Visual Breakdown on the Monitor
+The Outer Columns (Months): January through May (left) and August through D=
+ecember (right) map perfectly across from each other. The names are locked =
+to the top center of their respective squares, acting as banners. The empty=
+ space underneath them gives you a clean canvas to type in any groups, retr=
+eats, or birthdays for that month.
+The Thinner Header Rows: Rows 1 and 5 in the center serve strictly as the c=
+alendar anchors. They are 20% thinner to save screen real estate, leaving t=
+he other 6 rows wide open for adding multiple stacked groups, headcounts, o=
+r housing assignments.
+Widescreen Fit: Everything is mathematically proportioned using the code pr=
+ovided above to fit a standard 16:9 aspect ratio TV layout. It completely e=
+liminates any vertical or horizontal scrolling so it functions like a true =
+digital whiteboard.
+
+
+
+
+so what do I need to do next=20
+
+
+To bring this digital Mission Team Board to life and get it up on your TV m=
+onitor, you have two primary paths to choose from depending on your technic=
+al comfort level and whether you have a volunteer or staff member who can h=
+andle a bit of setup.
+Here are your clear next steps to move this project forward:
+Step 1: Choose Your Development Path
+Option A: The &quot;Low-Code / No-Code&quot; Route (Easiest for Non-Developers)
+If you want to build this yourself without writing software from scratch, u=
+se an internal tool builder.
+The Tools: Platforms like Budibase, Appsmith, or Glide are perfect for this=
+.
+What to do: You can sign up for a free account, use their drag-and-drop edi=
+tors to build the 3-column layout, and connect it to a simple built-in data=
+base to hold the editable text. They have built-in color pickers you can as=
+sign to your text boxes.
+Option B: The Custom Code Route (Most Flexible &amp; Exact)
+If you want the board to look exactly like a polished, custom website and h=
+ave total control over the TV styling.
+The Tools: Use the HTML/Tailwind CSS code template provided above.
+What to do: Hand that code template to a tech-savvy volunteer or developer.=
+ They can drop it into a lightweight framework like React or Vue.js, hook i=
+t up to a free real-time database like Firebase (so changes sync instantly =
+across devices), and host it on a free platform like Vercel or Netlify.
+Step 2: Set Up Your Apple Calendar Integration
+Because Apple Calendar doesn&#39;t like sharing data easily with outside apps, =
+you need to decide how the center summer weeks will pull that data:
+Open your Apple Calendar app on your Mac or iPhone.
+Right-click your &quot;Mission Team&quot; calendar and look for the &quot;Public Calendar&quot;=
+ checkbox.
+Turn it on and copy the long URL it gives you (it will start with webcal://=
+).
+This link can be fed directly into your app (or into a free automation tool=
+ like Make.com) to automatically read your summer dates and drop them into =
+the Week 1=E2=80=9310 slots.
+Step 3: Configure the Hardware for the TV
+While the app is being built, you can prep the monitor setup:
+The Computer: You will need a small device plugged into the back of the TV =
+via HDMI to display the web page. A Raspberry Pi, an old laptop tucked away=
+, or a cheap Mini PC (about $100) running Windows or ChromeOS works perfect=
+ly.
+The Display Link: Once your app is live, it will have a web address (e.g., =
+https://our-mission-board.com/display). You will open this link in a web br=
+owser on that TV&#39;s computer, hit F11 to make it full-screen, and leave it r=
+unning.
+Which of those two paths sounds like the best fit for your team: are you lo=
+oking to try building it yourself using a drag-and-drop tool, or do you hav=
+e someone in mind who can take the code template and run with it?
+
+
+Todd Wood
+IMPACT Ministries, Resort Missionary
+Office - 843-626-7069
+Cell - 843-254-7777
+307 1st Ave South
+Myrtle Beach, SC 29577
+http://www.impactmb.org
