@@ -21,7 +21,7 @@ export default defineConfig([
     rules: {
       'react-refresh/only-export-components': [
         'warn',
-        { allowConstantExport: true, allowExportNames: ['useAuth', 'useTheme'] },
+        { allowConstantExport: true, allowExportNames: ['useTheme'] },
       ],
     },
   },

@@ -1,34 +1,104 @@
 # AGENTS.md — Snips Dashboard
 
 ## Project Overview
-Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express + SQLite backend. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. No internet or Firebase required.
+Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express + SQLite backend, all built and run inside Docker/Podman. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. No internet or Firebase required.
 
 ---
 
-## Build / Lint / Test Commands
+## Container-Only Workflow (Docker / Podman)
+
+> **⚠️  This project is designed to be built, tested, and run entirely inside containers. Do NOT run `npm`, `node`, `vite`, `vitest`, `tsc`, `eslint`, `prettier`, or any other Node tool on the host.**
+>
+> The host's only responsibilities are: clone the repo, run `docker compose` / `podman compose` commands, and (for rootless Podman) fix ownership of the `./data` directory. Everything else happens in containers.
+
+### Why container-only?
+
+- The runtime image is built once and reused for dev, test, and production — guarantees identical environments
+- `better-sqlite3` requires native compilation (`python3 make g++`) which is not installed on most hosts
+- Rootless Podman needs the host to be untouched by Node toolchains
+- The Dockerfile's `runtime` target runs as a non-root user (uid 999); a host-side `node_modules` would conflict with the container's user
+
+### Forbidden on the host
+
+| Command | Use this instead |
+|---------|------------------|
+| `npm install` / `npm ci` | happens inside the container during build |
+| `npm test` / `vitest` | `docker compose --profile test run --rm test` |
+| `npm run dev` / `vite` | `docker compose --profile dev up dev` |
+| `npm run build` | happens inside the `build` stage of the Dockerfile |
+| `npm start` / `node server.cjs` | `docker compose up -d dashboard` |
+| `npm run lint` / `eslint` | run inside the dev container |
+| `npm run typecheck` / `tsc` | run inside the dev container |
+| `npm run format` / `prettier` | run inside the dev container |
+
+The host should never have a `node_modules` directory or any host-installed Node dependencies.
+
+### Start production dashboard
 
 ```bash
-npm install            # Install dependencies
-npm run dev            # Start Vite dev server
-npm run dev -- --host  # Expose on network for TV testing
-npm start              # Production server (Express + SQLite)
-npm run build          # Production build (tsc + vite build)
-npm run preview        # Preview production build locally
-npm run lint           # ESLint
-npm run format         # Prettier format all source files
-npm run typecheck      # TypeScript check without emit
-
-# Docker / Podman
-docker compose up -d --build     # Build and start
-podman compose up -d --build     # Same with Podman
-podman unshare chown -R 999:999 data  # Required once for rootless Podman
-
-# Tests (Vitest + React Testing Library)
-npm test                          # Run all tests
-npm run test:watch                # Watch mode
-npx vitest run src/path/to/test   # Run a single test file
-npx vitest run -t "test name"     # Run a single test by name pattern
+docker compose up -d
+# or: podman compose up -d
 ```
+
+Dashboard: http://localhost:3000. Database: `./data/data.db`.
+
+### First-time setup (rootless Podman)
+
+The `./data` bind mount is configured with `:z` (shared SELinux relabel) in `docker-compose.yml`. On rootless Podman the host directory's ownership must also be mapped to the container's run user (uid 999) via the subuid range:
+
+```bash
+mkdir -p data
+podman unshare chown -R 999:999 data
+```
+
+If the container logs show `Failed to open database: unable to open database file`, the SELinux context on `./data` is wrong (often `container_file_t` from a prior container run). Recreate the directory:
+
+```bash
+rm -rf data
+mkdir -p data
+podman unshare chown -R 999:999 data
+```
+
+### Development with hot-reload
+
+```bash
+docker compose --profile dev up dev
+# or: podman compose --profile dev up dev
+```
+
+- Vite dev server with hot-reload: http://localhost:5173
+- API server (also inside the dev container): http://localhost:3000
+- Source files are bind-mounted from `./src` to `/app/src`; edits are picked up live
+- A `./data` bind mount persists the dev DB separately from the production DB
+
+To run a one-off lint/typecheck/format inside the dev container (without starting the full stack):
+
+```bash
+docker compose --profile dev run --rm dev npm run lint
+docker compose --profile dev run --rm dev npm run typecheck
+```
+
+### Run tests
+
+```bash
+docker compose --profile test run --rm test
+# or: podman compose --profile test run --rm test
+```
+
+Runs Vitest inside the container. Exits with the test runner's exit code.
+
+### Rebuild after dependency changes
+
+When `package.json` or `package-lock.json` changes, rebuild the images:
+
+```bash
+docker compose up -d --build
+# or: podman compose up -d --build
+```
+
+If you only changed source code (not dependencies), the bind mounts in dev mode pick up changes live — no rebuild needed.
+
+---
 
 ## Tech Stack & Conventions
 
@@ -38,14 +108,12 @@ npx vitest run -t "test name"     # Run a single test by name pattern
 - **Vite 8+** as bundler
 - **Tailwind CSS v4** for all styling — no CSS modules or styled-components
 - **Express 5 + better-sqlite3** — production server with REST API
-- **React Router v7** for routing (single route, edit toggle in-app)
-- **Vitest** + **@testing-library/react** for tests
+- **Vitest** + **@testing-library/react** for tests (run inside container)
 
 ### Imports Order
 ```tsx
 // 1. External (npm) — alphabetical
 import { useState } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
 
 // 2. Internal absolute (@/ alias) — alphabetical
 import { getStatusColor } from '@/utils/dates'
@@ -109,11 +177,10 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
 - Import: `@import "tailwindcss"` in `index.css`
 
 ### Routes
-| Path | Purpose |
-|------|---------|
-| `/` | Main view — **Edit** button toggles admin CRUD, **View** returns to display |
+None — single-page app. The dashboard renders at `/`. The **Edit/View** button in the bottom-right toggles between display and admin modes in-place.
 
 ### Testing
+- All tests run inside the `test` Docker/Podman profile: `docker compose --profile test run --rm test`
 - `describe` / `it` / `expect` (Vitest)
 - `render` from `@testing-library/react`
 - Auto-cleanup via `afterEach(cleanup)` in setup file
@@ -128,19 +195,21 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
 ### Server (server.cjs)
 - Express 5 serving `dist/` statically + REST API at `/api/*`
 - SQLite via better-sqlite3, auto-seeds defaults on first run
-- Run with `node server.cjs` or `npm start`
 - Port configurable via `PORT` env var (default 3000)
 - Data directory configurable via `DATA_DIR` env var (default: same dir as server.cjs)
 - Validation: `groupName` required + max 200 chars; `content` max 1MB
 - Server errors logged internally, generic "Internal server error" returned to client
 
 ### Docker
-- Multi-stage Dockerfile: build stage installs deps + builds `dist/`, runtime stage copies only what's needed
-- Runs as non-root user (uid 999) for rootless Podman compatibility
+- Multi-stage Dockerfile with three targets: `runtime` (default), `dev`, `test`
+- All targets install dependencies from `package.json` via `npm ci` (inside the build)
+- `runtime` runs as non-root user (uid 999) for rootless Podman compatibility
+- `test` target runs `npm test` and exits
+- `dev` target runs Vite dev server + API server via `concurrently`; source bind-mounted for hot-reload
 - Healthcheck hits `/api/data`
-- Bind mount `./data:/data` persists SQLite database across container rebuilds
+- Bind mount `./data:/data:z` persists the SQLite database across container rebuilds (`:z` is required for SELinux-enforcing hosts)
 - `DATA_DIR=/data` env var tells the server where to find the database
-- Use `podman unshare chown -R 999:999 data` once before first run to fix host-side ownership
+- See [Container-Only Workflow](#container-only-workflow-docker--podman) above for the full host-side setup
 
 ### API Endpoints
 | Method | Path | Purpose |

@@ -1,6 +1,8 @@
 services:
   dashboard:
-    build: .
+    build:
+      context: .
+      target: runtime
     image: snips-dashboard:latest
     container_name: snips-dashboard
     restart: unless-stopped
@@ -10,10 +12,43 @@ services:
       - PORT=3000
       - DATA_DIR=/data
     volumes:
-      - ./data:/data
+      - ./data:/data:z
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/data', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 30s
       timeout: 3s
       retries: 3
       start_period: 5s
+
+  dev:
+    build:
+      context: .
+      target: dev
+    image: snips-dashboard:dev
+    container_name: snips-dashboard-dev
+    profiles: ["dev"]
+    ports:
+      - "5173:5173"
+      - "3000:3000"
+    environment:
+      - DATA_DIR=/data
+    volumes:
+      - ./data:/data:z
+      - ./src:/app/src:z
+      - ./server.cjs:/app/server.cjs:z
+      - ./package.json:/app/package.json:z
+      - ./vite.config.ts:/app/vite.config.ts:z
+      - ./tsconfig.app.json:/app/tsconfig.app.json:z
+      - ./tsconfig.json:/app/tsconfig.json:z
+      - ./tsconfig.node.json:/app/tsconfig.node.json:z
+      - ./eslint.config.js:/app/eslint.config.js:z
+      - ./index.html:/app/index.html:z
+
+  test:
+    build:
+      context: .
+      target: test
+    image: snips-dashboard:test
+    container_name: snips-dashboard-test
+    profiles: ["test"]
+    command: ["npm", "test"]
