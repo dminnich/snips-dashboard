@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - PORT=3000
       - DATA_DIR=/data
@@ -29,6 +31,8 @@ services:
     profiles: ["dev"]
     ports:
       - "5173:5173"
+    env_file:
+      - .env
     environment:
       - DATA_DIR=/data
     volumes:
