@@ -248,13 +248,11 @@ Basic authentication can be enabled via environment variables:
 
 When enabled, all requests require HTTP Basic Auth. Browsers will show a login prompt.
 
-**Usage:**
-```bash
-# docker-compose.yml or .env
-environment:
-  - AUTH_ENABLED=true
-  - AUTH_USERNAME=myuser
-  - AUTH_PASSWORD=securepassword
+**Usage: (.env)**
+```yaml
+AUTH_ENABLED=true
+AUTH_USERNAME=admin
+AUTH_PASSWORD=admin
 ```
 
 ### Rate Limiting
@@ -292,6 +290,5 @@ Server sets the following headers on all responses:
 - Container runs as non-root user (uid 999)
 
 ### Deployment Notes
-- This app is designed for LAN-only deployment
-- For LAN-only use, authentication is optional (network isolation provides security)
-- For internet exposure: enable authentication, add HTTPS termination, use strong passwords
+- For LAN-only use, authentication is optional
+- For internet exposure: enable authentication, add HTTPS termination, use strong passwords and using something like [Render](https://render.com/) with a persistent disk.

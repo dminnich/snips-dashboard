@@ -2,6 +2,27 @@
 
 A full-screen 16:9 dashboard for tracking mission team events across the year. Displays January–May on the left, 10 summer weeks in the center, and August–December on the right.
 
+## Features
+
+- **3-column grid layout** optimized for 16:9 monitors
+- **Dark/light theme toggle**
+- **Edit/View toggle** — click to switch between display mode and admin CRUD
+- **Add Group** — create event cards with group name, headcount, housing, status
+- **Status colors**: red (mission), orange (pending), green (paid)
+- **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in month content and special events
+- **Export/Import JSON** — download/upload board data from the legend bar
+- **Color legend** at the bottom of the screen
+
+## Tech Stack
+
+React 19, TypeScript, Vite 8, Tailwind CSS v4, Express 5, better-sqlite3
+
+## Hosting
+
+Run `docker compose up -d` (or `podman compose up -d`) on any machine (Raspberry Pi, old laptop, etc.) on your LAN. No internet connection required.
+
+Or turn on authentication and run it on the internet using [Render](https://render.com/) with a persistent disk.
+
 > ## ⚠️  Container-Only Project
 >
 > **This project is designed to be built, tested, and run entirely inside Docker/Podman containers.** The host's only jobs are to clone the repo, run `docker compose` / `podman compose` commands, and (for rootless Podman) fix ownership of the `./data` directory.
@@ -46,18 +67,11 @@ docker compose --profile test run --rm test
 
 Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside the container. Exits with the first non-zero code.
 
-## Features
 
-- **3-column grid layout** optimized for 16:9 monitors
-- **Dark/light theme toggle**
-- **Edit/View toggle** — click to switch between display mode and admin CRUD
-- **Add Group** — create event cards with group name, headcount, housing, status
-- **Status colors**: red (mission), orange (pending), green (paid)
-- **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in month content and special events
-- **Export/Import JSON** — download/upload board data from the legend bar
-- **Color legend** at the bottom of the screen
 
-## Container Commands
+## Docker
+
+### Container Commands
 
 | Task | Docker | Podman |
 |------|--------|--------|
@@ -68,62 +82,26 @@ Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside th
 | View logs | `docker compose logs -f` | `podman compose logs -f` |
 | Stop & remove | `docker compose down` | `podman compose down` |
 
-## Docker
-
 ### Multi-stage Dockerfile
 
 The image has three targets:
 - **`runtime`** (default) — production server. Express + SQLite on port 3000. Runs as non-root (uid 999) for rootless Podman.
 - **`dev`** — Vite dev server with hot-reload on port 5173, plus the API on 3000 (inside the container only; Vite proxies `/api/*` from the host). Source files are bind-mounted for live editing.
-- **`test`** — runs `npm test` (Vitest) and exits.
+- **`test`** — runs `npm test` Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside the container. Exits with the first non-zero code.
 
-### Why container-only?
+## API Endpoints
 
-- The runtime image is built once and reused for dev, test, and production — guarantees identical environments
-- `better-sqlite3` requires native compilation (`python3 make g++`) which is not installed on most hosts
-- Rootless Podman needs the host to be untouched by Node toolchains
-- The Dockerfile's `runtime` target runs as a non-root user (uid 999); a host-side `node_modules` would conflict with the container's user
-
-### Rootless Podman
-
-Rootless Podman runs containers with a sub-uid mapping, so the bind-mounted directory on the host must be owned by uid 999 (the container user). The compose file declares the bind mount with `:z` (shared SELinux relabel), which is required for the container to write to the directory when SELinux is enforcing:
-
-```bash
-mkdir -p data
-podman unshare chown -R 999:999 data
-podman compose up -d
-```
-
-The `podman unshare` command runs the chown inside the user namespace, so no root privileges are required on the host. This only needs to be done once — the data directory keeps its ownership.
-
-If the container logs show `Failed to open database: unable to open database file`, the SELinux context on `./data` is wrong (often `container_file_t` left over from a prior container run). Recreate the directory:
-
-```bash
-rm -rf data
-mkdir -p data
-podman unshare chown -R 999:999 data
-```
-
-## Tech Stack
-
-React 19, TypeScript, Vite 8, Tailwind CSS v4, Express 5, better-sqlite3
-
-## Hosting
-
-Run `docker compose up -d` (or `podman compose up -d`) on any machine (Raspberry Pi, old laptop, etc.) on your LAN. No internet connection required.
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/data` | Fetch all months, weeks, events |
+| PUT | `/api/data` | Import full data (replace all) |
+| PATCH | `/api/months/:id` | Update month (content, subtitle, specialEvents) |
+| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents) |
+| POST | `/api/weeks/:id/events` | Add event to week |
+| PATCH | `/api/weeks/:wid/events/:eid` | Update event |
+| DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
 
 ## Troubleshooting
-
-### Database errors (rootless Podman)
-
-If container logs show `Failed to open database: unable to open database file`, the SELinux context on `./data` is wrong:
-
-```bash
-rm -rf data
-mkdir -p data
-podman unshare chown -R 999:999 data
-docker compose up -d
-```
 
 ### Container won't start
 
@@ -141,17 +119,7 @@ docker compose up -d --build
 # or: podman compose up -d --build
 ```
 
-## API Endpoints
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/api/data` | Fetch all months, weeks, events |
-| PUT | `/api/data` | Import full data (replace all) |
-| PATCH | `/api/months/:id` | Update month (content, subtitle, specialEvents) |
-| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents) |
-| POST | `/api/weeks/:id/events` | Add event to week |
-| PATCH | `/api/weeks/:wid/events/:eid` | Update event |
-| DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
+## Security
 
 ### Authentication (Optional)
 
@@ -165,12 +133,11 @@ Basic authentication can be enabled via environment variables:
 
 When enabled, browsers will show a login prompt before accessing the dashboard.
 
-**Example (docker-compose.yml):**
+**Example (.env):**
 ```yaml
-environment:
-  - AUTH_ENABLED=true
-  - AUTH_USERNAME=myuser
-  - AUTH_PASSWORD=securepassword
+AUTH_ENABLED=true
+AUTH_USERNAME=admin
+AUTH_PASSWORD=admin
 ```
 
 ### Rate Limiting
@@ -189,3 +156,5 @@ environment:
 | subtitle | 500 chars |
 | specialEvents | 1 MB |
 | housing | 200 chars |
+
+Data is sanitized using dompurify
