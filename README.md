@@ -153,6 +153,33 @@ docker compose up -d --build
 | PATCH | `/api/weeks/:wid/events/:eid` | Update event |
 | DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
 
+### Authentication (Optional)
+
+Basic authentication can be enabled via environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AUTH_ENABLED` | `false` | Set to `true` to require authentication |
+| `AUTH_USERNAME` | `admin` | Username for login |
+| `AUTH_PASSWORD` | `changeme` | Password for login |
+
+When enabled, browsers will show a login prompt before accessing the dashboard.
+
+**Example (docker-compose.yml):**
+```yaml
+environment:
+  - AUTH_ENABLED=true
+  - AUTH_USERNAME=myuser
+  - AUTH_PASSWORD=securepassword
+```
+
+### Rate Limiting
+
+| Endpoint Type | Limit | Headers |
+|--------------|-------|---------|
+| General API | 100 requests/minute | `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset` |
+| Write operations | 30 requests/minute | Same headers |
+
 ### Input Limits
 
 | Field | Max Length |

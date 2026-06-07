@@ -3,6 +3,12 @@ const Database = require('better-sqlite3')
 const path = require('path')
 const crypto = require('crypto')
 const fs = require('fs')
+const { JSDOM } = require('jsdom')
+const rateLimit = require('express-rate-limit')
+const createDOMPurify = require('dompurify')
+
+const window = new JSDOM('').window
+const DOMPurify = createDOMPurify(window)
 
 const EVENT_STATUSES = ['mission', 'pending', 'paid']
 const MAX_TEXT = 1_000_000
@@ -17,14 +23,11 @@ function stringError(value, field, max = MAX_TEXT) {
 
 function sanitizeHtml(html) {
   if (typeof html !== 'string') return ''
-  return html
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
-    .replace(/<\/?(?:iframe|object|embed|link|meta|base|form|input|button|textarea|select)\b[^>]*>/gi, '')
-    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
-    .replace(/(\s(?:href|src|action|formaction|background|poster|cite|srcset|xlink:href))\s*=\s*"\s*javascript:[^"]*"/gi, '$1="#"')
-    .replace(/(\s(?:href|src|action|formaction|background|poster|cite|srcset|xlink:href))\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'")
-    .replace(/(\s(?:href|src|action|formaction|background|poster|cite|srcset|xlink:href))\s*=\s*javascript:[^\s>]*/gi, '$1="#"')
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['b', 'i', 'u', 'font', 'span', 'div', 'p', 'br', 'strong', 'em', 'a'],
+    ALLOWED_ATTR: ['size', 'color', 'style', 'href'],
+    ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
+  })
 }
 
 function validateData(data) {
@@ -162,9 +165,72 @@ app.use((req, res, next) => {
   )
   next()
 })
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  message: { error: 'Too many requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+const apiWriteLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: 'Too many write requests, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+})
+
+app.use('/api/', apiLimiter)
+app.use(['/api/months/', '/api/weeks/'], apiWriteLimiter)
+
+
+
+// Basic Authentication Middleware
+const AUTH_ENABLED = process.env.AUTH_ENABLED === 'true'
+const AUTH_USERNAME = process.env.AUTH_USERNAME || 'admin'
+const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme'
+
+function basicAuth(req, res, next) {
+  if (!AUTH_ENABLED) return next()
+
+  const authHeader = req.headers.authorization
+  if (!authHeader || !authHeader.startsWith('Basic ')) {
+    res.setHeader('WWW-Authenticate', 'Basic realm="Dashboard"')
+    return res.status(401).json({ error: 'Authentication required' })
+  }
+
+  try {
+    const base64Credentials = authHeader.split(' ')[1]
+    const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8')
+    const [username, password] = credentials.split(':')
+
+    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+      return next()
+    }
+  } catch (err) {
+    // Invalid base64 encoding
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="Dashboard"')
+  res.status(401).json({ error: 'Invalid credentials' })
+}
+
+app.use(basicAuth)
 
 app.use(express.json())
 app.use(express.static(path.join(__dirname, 'dist')))
+
+
+// Health Check Endpoint
+app.get('/health', (req, res) => {
+  try {
+    db.prepare('SELECT 1').get()
+    res.json({ status: 'healthy', timestamp: new Date().toISOString() })
+  } catch (err) {
+    res.status(500).json({ status: 'unhealthy', error: err.message })
+  }
+})
 
 app.get('/api/data', (req, res) => {
   try {

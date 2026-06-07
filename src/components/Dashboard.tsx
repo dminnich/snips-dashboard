@@ -75,24 +75,10 @@ export function Dashboard() {
   }
 
   const leftMonths = MONTHS_LEFT.map(
-    (name) =>
-      months.find((m) => m.name === name) ?? {
-        id: name.toLowerCase(),
-        name,
-        content: "",
-        subtitle: "",
-        specialEvents: "",
-      },
+    (name) => months.find((m) => m.name === name)!,
   );
   const rightMonths = MONTHS_RIGHT.map(
-    (name) =>
-      months.find((m) => m.name === name) ?? {
-        id: name.toLowerCase(),
-        name,
-        content: "",
-        subtitle: "",
-        specialEvents: "",
-      },
+    (name) => months.find((m) => m.name === name)!,
   );
 
   return (

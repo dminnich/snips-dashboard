@@ -225,12 +225,40 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 | PATCH | `/api/weeks/:wid/events/:eid` | Update event |
 | DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
 
----
-
 ## Security Guidelines
 
+### Authentication (Optional)
+Basic authentication can be enabled via environment variables:
+- `AUTH_ENABLED=true` — Enable authentication (default: `false`)
+- `AUTH_USERNAME` — Username for login (default: `admin`)
+- `AUTH_PASSWORD` — Password for login (default: `changeme`)
+
+When enabled, all requests require HTTP Basic Auth. Browsers will show a login prompt.
+
+**Usage:**
+```bash
+# docker-compose.yml or .env
+environment:
+  - AUTH_ENABLED=true
+  - AUTH_USERNAME=myuser
+  - AUTH_PASSWORD=securepassword
+```
+
+### Rate Limiting
+- API endpoints are rate-limited to prevent abuse:
+  - General API: 100 requests per minute per IP
+  - Write operations (PATCH/POST/DELETE): 30 requests per minute per IP
+- Rate limit headers included in responses (`RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`)
+
+### HTML Sanitization
+- **DOMPurify** (v3+) used for all HTML sanitization (server and client)
+- Allowed tags: `b`, `i`, `u`, `font`, `span`, `div`, `p`, `br`, `strong`, `em`, `a`
+- Allowed attributes: `size`, `color`, `style`, `href`
+- JavaScript URLs and event handlers are automatically stripped
+- Supports WYSIWYG features: bold, italic, underline, font sizes (X-Small to X-Large), text colors
+
 ### Input Validation
-- All user input is sanitized server-side (HTML sanitization removes scripts, styles, dangerous tags)
+- All user input is sanitized server-side before database storage
 - Input length limits enforced:
   - `groupName`: max 200 chars
   - `content`: max 1 MB
@@ -251,6 +279,6 @@ Server sets the following headers on all responses:
 - Container runs as non-root user (uid 999)
 
 ### Deployment Notes
-- This app is designed for LAN-only deployment without authentication
-- Do not expose to the public internet without adding authentication/rate limiting
-- For production internet exposure, add: rate limiting, HTTPS termination, authentication
+- This app is designed for LAN-only deployment
+- For LAN-only use, authentication is optional (network isolation provides security)
+- For internet exposure: enable authentication, add HTTPS termination, use strong passwords

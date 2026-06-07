@@ -40,13 +40,16 @@ export function WysiwygEditor({
   minHeight = "120px",
 }: WysiwygEditorProps) {
   const ref = useRef<HTMLDivElement>(null);
+  const hasMounted = useRef(false);
 
   useLayoutEffect(() => {
-    if (ref.current && ref.current.innerHTML !== html) {
-      ref.current.innerHTML = html || "";
+    if (!hasMounted.current) {
+      if (ref.current) {
+        ref.current.innerHTML = html || "";
+      }
+      hasMounted.current = true;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [html]);
 
   const exec = useCallback((command: string, value?: string) => {
     document.execCommand(command, false, value);
