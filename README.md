@@ -17,6 +17,26 @@ A full-screen 16:9 dashboard for tracking mission team events across the year. D
 
 React 19, TypeScript, Vite 8, Tailwind CSS v4, Express 5, better-sqlite3
 
+## Project Structure
+
+```
+snips-dashboard/
+├── src/                    # React + TypeScript frontend
+│   ├── components/         # UI components (Dashboard, EventCard, etc.)
+│   ├── hooks/              # Custom React hooks (useLocalData)
+│   ├── context/            # React context (ThemeContext)
+│   ├── utils/              # Utilities (dates, DOMPurify sanitization)
+│   ├── types/              # TypeScript type definitions
+│   └── test/               # Test files (Vitest + Testing Library)
+├── server.cjs              # Express API server + SQLite
+├── docker-compose.yml      # Docker/Podman configuration
+├── Dockerfile              # Multi-stage container build
+├── .env                    # Configuration (optional, gitignored)
+├── openapi.yaml            # API documentation
+├── data/                   # SQLite database (gitignored, persists data)
+└── reference/              # Build logs and design notes (gitignored)
+```
+
 ## Hosting
 
 Run `docker compose up -d` (or `podman compose up -d`) on any machine (Raspberry Pi, old laptop, etc.) on your LAN. No internet connection required.
