@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Server } from "http";
 import express from "express";
+import type { Request, Response } from "express";
 
 describe("API Integration", () => {
   let server: Server;
@@ -10,39 +11,39 @@ describe("API Integration", () => {
     const app = express();
     app.use(express.json());
 
-    app.get("/health", (req, res) => {
+    app.get("/health", (_req: Request, res: Response) => {
       res.json({ status: "healthy", timestamp: new Date().toISOString() });
     });
 
-    app.get("/api/data", (req, res) => {
+    app.get("/api/data", (_req: Request, res: Response) => {
       res.json({ months: [], weeks: [] });
     });
 
-    app.put("/api/data", (req, res) => {
+    app.put("/api/data", (_req: Request, res: Response) => {
       res.json({ ok: true });
     });
 
-    app.patch("/api/months/:id", (req, res) => {
+    app.patch("/api/months/:id", (_req: Request, res: Response) => {
       res.json({ ok: true });
     });
 
-    app.patch("/api/weeks/:id", (req, res) => {
+    app.patch("/api/weeks/:id", (_req: Request, res: Response) => {
       res.json({ ok: true });
     });
 
-    app.post("/api/weeks/:id/events", (req, res) => {
+    app.post("/api/weeks/:id/events", (_req: Request, res: Response) => {
       res.json({ id: "test-event-id" });
     });
 
-    app.patch("/api/weeks/:wid/events/:eid", (req, res) => {
+    app.patch("/api/weeks/:wid/events/:eid", (_req: Request, res: Response) => {
       res.json({ ok: true });
     });
 
-    app.delete("/api/weeks/:wid/events/:eid", (req, res) => {
+    app.delete("/api/weeks/:wid/events/:eid", (_req: Request, res: Response) => {
       res.json({ ok: true });
     });
 
-    app.use((req, res) => {
+    app.use((_req: Request, res: Response) => {
       res.status(404).json({ error: "Not found" });
     });
 
@@ -142,11 +143,14 @@ describe("API Integration", () => {
 
   describe("PATCH /api/weeks/:wid/events/:eid", () => {
     it("updates event and returns ok", async () => {
-      const res = await fetch(`${baseUrl}/api/weeks/week-1/events/test-event`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "paid" }),
-      });
+      const res = await fetch(
+        `${baseUrl}/api/weeks/week-1/events/test-event`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "paid" }),
+        },
+      );
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.ok).toBe(true);
@@ -155,9 +159,12 @@ describe("API Integration", () => {
 
   describe("DELETE /api/weeks/:wid/events/:eid", () => {
     it("deletes event and returns ok", async () => {
-      const res = await fetch(`${baseUrl}/api/weeks/week-1/events/test-event`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `${baseUrl}/api/weeks/week-1/events/test-event`,
+        {
+          method: "DELETE",
+        },
+      );
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.ok).toBe(true);
