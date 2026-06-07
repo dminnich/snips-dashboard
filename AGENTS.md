@@ -219,7 +219,12 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 - `dev` target runs Vite dev server + API server via `concurrently`; source bind-mounted for hot-reload
 - Healthcheck hits `/api/data`
 - Bind mount `./data:/data:z` persists the SQLite database across container rebuilds (`:z` is required for SELinux-enforcing hosts)
-- `DATA_DIR=/data` env var tells the server where to find the database
+- **Environment variables**:
+  - `PORT`: Server port (default: 3000)
+  - `DATA_DIR`: Database directory (default: same dir as server.cjs, or `/data` in container)
+  - `AUTH_ENABLED`: Enable basic auth (default: `false`)
+  - `AUTH_USERNAME`: Auth username (default: `admin`)
+  - `AUTH_PASSWORD`: Auth password (default: `changeme`)
 - See [Container-Only Workflow](#container-only-workflow-docker--podman) above for the full host-side setup
 
 ### API Endpoints
