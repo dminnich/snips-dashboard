@@ -2,12 +2,6 @@ import { useState, useCallback, useEffect } from "react";
 import type { MonthData, WeekData, EventCard } from "@/types";
 import { MONTHS_LEFT, MONTHS_RIGHT, SUMMER_WEEKS } from "@/utils/dates";
 
-let nextId = 100;
-
-function genId(): string {
-  return `evt-${nextId++}`;
-}
-
 function createDefaultMonths(): MonthData[] {
   return [...MONTHS_LEFT, ...MONTHS_RIGHT].map((name) => ({
     id: name.toLowerCase(),
@@ -75,7 +69,7 @@ export function useLocalData() {
   }, []);
 
   const addEvent = useCallback(
-    (
+    async (
       weekId: string,
       data: {
         groupName: string;
@@ -84,17 +78,49 @@ export function useLocalData() {
         status: EventCard["status"];
       },
     ) => {
-      const id = genId();
-      const newEvent: EventCard = { id, weekId, ...data };
+      const tempId = crypto.randomUUID();
+      const optimisticEvent: EventCard = { id: tempId, weekId, ...data };
       setWeeks((prev) =>
         prev.map((w) =>
-          w.id === weekId ? { ...w, events: [...w.events, newEvent] } : w,
+          w.id === weekId
+            ? { ...w, events: [...w.events, optimisticEvent] }
+            : w,
         ),
       );
-      apiFetch(`/api/weeks/${weekId}/events`, "POST", { id, ...data }).catch(
-        () => {},
-      );
-      return newEvent;
+      try {
+        const res = await fetch(`/api/weeks/${weekId}/events`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) throw new Error(`POST failed: ${res.status}`);
+        const { id: serverId } = (await res.json()) as { id: string };
+        if (serverId !== tempId) {
+          setWeeks((prev) =>
+            prev.map((w) =>
+              w.id !== weekId
+                ? w
+                : {
+                    ...w,
+                    events: w.events.map((e) =>
+                      e.id === tempId ? { ...e, id: serverId } : e,
+                    ),
+                  },
+            ),
+          );
+        }
+        return { ...optimisticEvent, id: serverId };
+      } catch (err) {
+        console.error("addEvent failed; rolling back", err);
+        setWeeks((prev) =>
+          prev.map((w) =>
+            w.id !== weekId
+              ? w
+              : { ...w, events: w.events.filter((e) => e.id !== tempId) },
+          ),
+        );
+        throw err;
+      }
     },
     [],
   );

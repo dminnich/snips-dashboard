@@ -1,6 +1,27 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useLocalData } from "./useLocalData";
+
+beforeEach(() => {
+  vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+    const url = typeof input === "string" ? input : input.toString();
+    if (url === "/api/data") {
+      return Promise.resolve(
+        new Response(JSON.stringify({ months: [], weeks: [] }), {
+          status: 200,
+        }),
+      );
+    }
+    if (url.includes("/events") && !url.match(/events\/[^/]+$/)) {
+      return Promise.resolve(
+        new Response(JSON.stringify({ id: crypto.randomUUID() }), {
+          status: 200,
+        }),
+      );
+    }
+    return Promise.resolve(new Response("{}", { status: 200 }));
+  });
+});
 
 describe("useLocalData", () => {
   it("initializes with 10 months (5 left + 5 right)", () => {
@@ -43,11 +64,11 @@ describe("useLocalData", () => {
     expect(w1?.subtitle).toBe("Youth Week");
   });
 
-  it("addEvent creates event with provided data and returns it", () => {
+  it("addEvent creates event with provided data and returns it", async () => {
     const { result } = renderHook(() => useLocalData());
     let event;
-    act(() => {
-      event = result.current.addEvent("week-1", {
+    await act(async () => {
+      event = await result.current.addEvent("week-1", {
         groupName: "Test Group",
         headcount: 25,
         housing: "B1",
@@ -61,11 +82,11 @@ describe("useLocalData", () => {
     expect(w1?.events[0].groupName).toBe("Test Group");
   });
 
-  it("updateEvent updates an existing event", () => {
+  it("updateEvent updates an existing event", async () => {
     const { result } = renderHook(() => useLocalData());
     let event;
-    act(() => {
-      event = result.current.addEvent("week-1", {
+    await act(async () => {
+      event = await result.current.addEvent("week-1", {
         groupName: "Old Name",
         headcount: 10,
         housing: "",
@@ -81,11 +102,11 @@ describe("useLocalData", () => {
     expect(w1?.events[0].groupName).toBe("New Name");
   });
 
-  it("deleteEvent removes an event", () => {
+  it("deleteEvent removes an event", async () => {
     const { result } = renderHook(() => useLocalData());
     let event;
-    act(() => {
-      event = result.current.addEvent("week-1", {
+    await act(async () => {
+      event = await result.current.addEvent("week-1", {
         groupName: "To Delete",
         headcount: 5,
         housing: "",

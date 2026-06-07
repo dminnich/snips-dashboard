@@ -59,7 +59,7 @@ describe("EventEditor", () => {
       />,
     );
     expect(screen.getByPlaceholderText("e.g. Brushy Creek")).toHaveValue("");
-    expect(screen.getByLabelText("Headcount")).toHaveValue("");
+    expect(screen.getByPlaceholderText("10")).toHaveValue("");
     expect(screen.getByPlaceholderText("e.g. B1 & B2")).toHaveValue("");
   });
 
@@ -106,7 +106,7 @@ describe("EventEditor", () => {
     fireEvent.change(screen.getByPlaceholderText("e.g. Brushy Creek"), {
       target: { value: "New Group" },
     });
-    fireEvent.change(screen.getByLabelText("Headcount"), {
+    fireEvent.change(screen.getByPlaceholderText("10"), {
       target: { value: "15" },
     });
     fireEvent.click(screen.getByText("Add"));

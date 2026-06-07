@@ -118,7 +118,10 @@ app.post('/api/weeks/:id/events', (req, res) => {
     if (groupName.length > 200) {
       return res.status(400).json({ error: 'groupName too long' })
     }
-    const eventId = id || require('crypto').randomUUID()
+    const eventId = require('crypto').randomUUID()
+    if (id !== undefined && id !== eventId) {
+      console.warn('POST /api/weeks/:id/events: client-supplied id ignored', { clientId: id, serverId: eventId })
+    }
     db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
       .run(eventId, req.params.id, groupName, headcount ?? 0, housing ?? '', status ?? 'pending')
     res.json({ id: eventId })

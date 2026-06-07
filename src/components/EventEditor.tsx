@@ -89,7 +89,7 @@ export function EventEditor({
               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder) [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={headcount}
               onChange={(e) => setHeadcount(e.target.value)}
-              placeholder=""
+              placeholder="10"
             />
           </div>
           <div className="flex-1">
