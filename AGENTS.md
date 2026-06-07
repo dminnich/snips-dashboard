@@ -1,7 +1,7 @@
 # AGENTS.md — Snips Dashboard
 
 ## Project Overview
-Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express + SQLite backend, all built and run inside Docker/Podman. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. No internet or Firebase required.
+Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express + SQLite backend, all built and run inside Docker/Podman. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. No internet required.
 
 ---
 
@@ -27,8 +27,8 @@ Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express +
 | `npm run dev` / `vite` | `docker compose --profile dev up dev` |
 | `npm run build` | happens inside the `build` stage of the Dockerfile |
 | `npm start` / `node server.cjs` | `docker compose up -d dashboard` |
-| `npm run lint` / `eslint` | run inside the dev container |
-| `npm run typecheck` / `tsc` | run inside the dev container |
+| `npm run lint` / `eslint` | run inside the dev container. runs as part of the test profile |
+| `npm run typecheck` / `tsc` | run inside the dev container. runs as part of the test profile |
 | `npm run format:check` / `prettier --check` | runs as part of the test profile |
 | `npm run format` / `prettier --write` | run inside the dev container |
 
@@ -70,7 +70,7 @@ docker compose --profile dev up dev
 - Vite dev server with hot-reload: http://localhost:5173
 - API requests are proxied through Vite at `/api/*` (see `vite.config.ts`); the API is not exposed on a host port
 - Source files are bind-mounted from `./src` to `/app/src`; edits are picked up live
-- A `./data` bind mount persists the dev DB separately from the production DB
+- A `./data` bind mount persists the DB
 
 To run a one-off lint/typecheck/format inside the dev container (without starting the full stack):
 
@@ -162,7 +162,7 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
 
 ### State Management
 - **Local state** (`useState`) for UI concerns
-- **`useLocalData` hook** — full CRUD for months, weeks, and events (syncs to SQLite via REST API, falls back to in-memory)
+- **`useLocalData` hook** — full CRUD for months, weeks, and events (syncs to SQLite via REST API)
 - **Context** for theme (dark/light)
 - No Redux/Zustand unless complexity demands it
 
@@ -200,7 +200,15 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 - SQLite via better-sqlite3, auto-seeds defaults on first run
 - Port configurable via `PORT` env var (default 3000)
 - Data directory configurable via `DATA_DIR` env var (default: same dir as server.cjs)
-- Validation: `groupName` required + max 200 chars; `content` max 1MB
+- **Authentication** (optional): `AUTH_ENABLED`, `AUTH_USERNAME`, `AUTH_PASSWORD` env vars
+- **Rate limiting**: 100 req/min general, 30 req/min write operations
+- **Health endpoint**: `GET /health` returns database connectivity status
+- **Validation**:
+  - `groupName`: required, max 200 chars
+  - `content`: max 1 MB
+  - `subtitle`: max 500 chars
+  - `specialEvents`: max 1 MB
+  - `housing`: max 200 chars
 - Server errors logged internally, generic "Internal server error" returned to client
 
 ### Docker
