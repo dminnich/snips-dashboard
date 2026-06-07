@@ -1,5 +1,5 @@
 interface EmptyStateProps {
-  message: string
+  message: string;
 }
 
 export function EmptyState({ message }: EmptyStateProps) {
@@ -7,5 +7,5 @@ export function EmptyState({ message }: EmptyStateProps) {
     <div className="flex h-full items-center justify-center text-sm italic text-(--text-muted)">
       {message}
     </div>
-  )
+  );
 }

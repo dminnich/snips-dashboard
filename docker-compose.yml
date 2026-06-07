@@ -51,4 +51,4 @@ services:
     image: snips-dashboard:test
     container_name: snips-dashboard-test
     profiles: ["test"]
-    command: ["npm", "test"]
+    command: ["sh", "-c", "npm test && npm run lint && npm run typecheck && npm run format:check"]

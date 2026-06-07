@@ -1,23 +1,23 @@
-import { type ReactNode, useEffect } from 'react'
+import { type ReactNode, useEffect } from "react";
 
 interface ModalProps {
-  open: boolean
-  onClose: () => void
-  title: string
-  children: ReactNode
+  open: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
 }
 
 export function Modal({ open, onClose, title, children }: ModalProps) {
   useEffect(() => {
-    if (!open) return
+    if (!open) return;
     function handleKey(e: KeyboardEvent) {
-      if (e.key === 'Escape') onClose()
+      if (e.key === "Escape") onClose();
     }
-    window.addEventListener('keydown', handleKey)
-    return () => window.removeEventListener('keydown', handleKey)
-  }, [open, onClose])
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [open, onClose]);
 
-  if (!open) return null
+  if (!open) return null;
 
   return (
     <div
@@ -37,5 +37,5 @@ export function Modal({ open, onClose, title, children }: ModalProps) {
         <div className="overflow-y-auto p-4">{children}</div>
       </div>
     </div>
-  )
+  );
 }

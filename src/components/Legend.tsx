@@ -1,13 +1,13 @@
 const ITEMS = [
-  { color: 'bg-red-500', label: 'Mission' },
-  { color: 'bg-orange-500', label: 'Pending' },
-  { color: 'bg-emerald-500', label: 'Paid' },
-]
+  { color: "bg-red-500", label: "Mission" },
+  { color: "bg-orange-500", label: "Pending" },
+  { color: "bg-emerald-500", label: "Paid" },
+];
 
 interface LegendProps {
-  isAdmin?: boolean
-  onExport?: () => void
-  onImport?: () => void
+  isAdmin?: boolean;
+  onExport?: () => void;
+  onImport?: () => void;
 }
 
 export function Legend({ isAdmin, onExport, onImport }: LegendProps) {
@@ -36,5 +36,5 @@ export function Legend({ isAdmin, onExport, onImport }: LegendProps) {
         </div>
       ))}
     </div>
-  )
+  );
 }

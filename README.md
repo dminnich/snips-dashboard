@@ -37,29 +37,21 @@ docker compose --profile dev up dev
 - API server: http://localhost:3000
 - Source files are bind-mounted — edits in `./src/` are picked up live
 
-### Run Tests
+### Run Tests / Lint / Typecheck / Format (quality gate)
 
 ```bash
 docker compose --profile test run --rm test
 # or: podman compose --profile test run --rm test
 ```
 
-### Lint / Typecheck / Format (one-off)
-
-All run inside the dev container:
-
-```bash
-docker compose --profile dev run --rm dev npm run lint
-docker compose --profile dev run --rm dev npm run typecheck
-docker compose --profile dev run --rm dev npm run format
-```
+Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside the container. Exits with the first non-zero code.
 
 ## Features
 
 - **3-column grid layout** optimized for 16:9 monitors
 - **Dark/light theme toggle**
 - **Edit/View toggle** — click to switch between display mode and admin CRUD
-- **Add Group** — create event cards with group name, headcount (default 10), housing, status
+- **Add Group** — create event cards with group name, headcount, housing, status
 - **Status colors**: red (mission), orange (pending), green (paid)
 - **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in month content and special events
 - **Export/Import JSON** — download/upload board data from the legend bar

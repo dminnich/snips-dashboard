@@ -29,7 +29,8 @@ Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express +
 | `npm start` / `node server.cjs` | `docker compose up -d dashboard` |
 | `npm run lint` / `eslint` | run inside the dev container |
 | `npm run typecheck` / `tsc` | run inside the dev container |
-| `npm run format` / `prettier` | run inside the dev container |
+| `npm run format:check` / `prettier --check` | runs as part of the test profile |
+| `npm run format` / `prettier --write` | run inside the dev container |
 
 The host should never have a `node_modules` directory or any host-installed Node dependencies.
 
@@ -76,6 +77,8 @@ To run a one-off lint/typecheck/format inside the dev container (without startin
 ```bash
 docker compose --profile dev run --rm dev npm run lint
 docker compose --profile dev run --rm dev npm run typecheck
+docker compose --profile dev run --rm dev npm run format
+docker compose --profile dev run --rm dev npm run format:check
 ```
 
 ### Run tests
@@ -85,7 +88,7 @@ docker compose --profile test run --rm test
 # or: podman compose --profile test run --rm test
 ```
 
-Runs Vitest inside the container. Exits with the test runner's exit code.
+Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside the container. Exits with the first non-zero code, so the test profile is the project's quality gate.
 
 ### Rebuild after dependency changes
 

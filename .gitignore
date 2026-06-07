@@ -14,10 +14,8 @@ dist-ssr
 
 # SQLite database (bind mount target)
 data/
-data.db
-data.db-*
 
-# Reference images
+# Reference build material
 reference/
 
 # Editor directories and files
