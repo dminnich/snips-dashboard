@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { useLocalData } from "./useLocalData";
 
 beforeEach(() => {
@@ -164,5 +164,104 @@ describe("useLocalData", () => {
     expect(jan?.content).toBe("imported");
     const w1 = result.current.weeks.find((w) => w.id === "week-1");
     expect(w1?.subtitle).toBe("imported week");
+  });
+});
+
+describe("useLocalData failure surfacing (S-2)", () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(globalThis, "fetch").mockImplementation(() => {
+      return Promise.resolve(new Response("server boom", { status: 500 }));
+    });
+  });
+
+  it("updateMonth logs a failure instead of swallowing it", async () => {
+    const { result } = renderHook(() => useLocalData());
+    act(() => result.current.updateMonth("january", { content: "x" }));
+    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    const msg = String(errorSpy.mock.calls[0][0]);
+    expect(msg).toContain("updateMonth");
+    expect(msg).toContain("january");
+  });
+
+  it("updateWeek logs a failure instead of swallowing it", async () => {
+    const { result } = renderHook(() => useLocalData());
+    act(() => result.current.updateWeek("week-1", { subtitle: "x" }));
+    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    const msg = String(errorSpy.mock.calls[0][0]);
+    expect(msg).toContain("updateWeek");
+  });
+
+  it("updateEvent logs a failure instead of swallowing it", async () => {
+    const { result } = renderHook(() => useLocalData());
+    let event: Awaited<ReturnType<typeof result.current.addEvent>> | undefined;
+    await act(async () => {
+      try {
+        event = await result.current.addEvent("week-1", {
+          groupName: "g",
+          headcount: 1,
+          housing: "",
+          status: "pending",
+        });
+      } catch {
+        event = undefined;
+      }
+    });
+    act(() =>
+      result.current.updateEvent("week-1", "synthetic-id", { groupName: "z" }),
+    );
+    await waitFor(() =>
+      expect(
+        errorSpy.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("updateEvent"),
+        ),
+      ).toBe(true),
+    );
+    expect(event).toBeUndefined();
+  });
+
+  it("deleteEvent logs a failure instead of swallowing it", async () => {
+    const { result } = renderHook(() => useLocalData());
+    await act(async () => {
+      try {
+        await result.current.addEvent("week-1", {
+          groupName: "g",
+          headcount: 1,
+          housing: "",
+          status: "pending",
+        });
+      } catch (_e) {
+        void _e;
+      }
+    });
+    act(() => result.current.deleteEvent("week-1", "synthetic-id"));
+    await waitFor(() =>
+      expect(
+        errorSpy.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("deleteEvent"),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("importData logs the PUT failure (but does not throw — local state stays updated)", async () => {
+    const { result } = renderHook(() => useLocalData());
+    act(() => {
+      result.current.toolbar.importData('{"months":[],"weeks":[]}');
+    });
+    await waitFor(() => expect(errorSpy).toHaveBeenCalled());
+    const msg = String(errorSpy.mock.calls[0][0]);
+    expect(msg).toContain("importData");
+  });
+
+  it("initial /api/data fetch failure uses console.warn (not error)", async () => {
+    renderHook(() => useLocalData());
+    await waitFor(() => expect(warnSpy).toHaveBeenCalled());
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 });

@@ -42,7 +42,7 @@ export function WysiwygEditor({
   const ref = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    if (ref.current) {
+    if (ref.current && ref.current.innerHTML !== html) {
       ref.current.innerHTML = html || "";
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

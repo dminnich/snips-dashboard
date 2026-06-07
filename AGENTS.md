@@ -68,7 +68,7 @@ docker compose --profile dev up dev
 ```
 
 - Vite dev server with hot-reload: http://localhost:5173
-- API server (also inside the dev container): http://localhost:3000
+- API requests are proxied through Vite at `/api/*` (see `vite.config.ts`); the API is not exposed on a host port
 - Source files are bind-mounted from `./src` to `/app/src`; edits are picked up live
 - A `./data` bind mount persists the dev DB separately from the production DB
 
@@ -99,7 +99,7 @@ docker compose up -d --build
 # or: podman compose up -d --build
 ```
 
-If you only changed source code (not dependencies), the bind mounts in dev mode pick up changes live — no rebuild needed.
+If you only changed source code (not dependencies), the bind mounts in dev mode pick up changes live — no rebuild needed. `package.json` and `package-lock.json` are intentionally NOT bind-mounted in dev: if they were, the container's `node_modules` (baked in at build time) could drift from the host's package manifest, causing subtle bugs. The trade-off is that `npm install` in the dev container won't take effect until you rebuild.
 
 ---
 

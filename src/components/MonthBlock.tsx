@@ -1,4 +1,5 @@
 import type { MonthData } from "@/types";
+import { sanitizeHtml } from "@/utils/sanitize";
 
 interface MonthBlockProps {
   month: MonthData;
@@ -35,14 +36,16 @@ export function MonthBlock({ month, isAdmin, onEdit }: MonthBlockProps) {
         {month.content && (
           <div
             className="text-(--text)"
-            dangerouslySetInnerHTML={{ __html: month.content }}
+            dangerouslySetInnerHTML={{ __html: sanitizeHtml(month.content) }}
           />
         )}
       </div>
       {month.specialEvents && (
         <div
           className="px-2 pb-2 text-[10px] text-(--text-muted)"
-          dangerouslySetInnerHTML={{ __html: month.specialEvents }}
+          dangerouslySetInnerHTML={{
+            __html: sanitizeHtml(month.specialEvents),
+          }}
         />
       )}
     </div>

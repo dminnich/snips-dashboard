@@ -28,12 +28,17 @@ async function apiGet(path: string) {
   return res.json();
 }
 
-function apiFetch(path: string, method: string, body?: unknown) {
-  return fetch(path, {
+async function apiFetch(path: string, method: string, body?: unknown) {
+  const res = await fetch(path, {
     method,
     headers: { "Content-Type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
+  if (!res.ok) throw new Error(`${method} ${path} failed: ${res.status}`);
+}
+
+function logFailure(action: string, err: unknown) {
+  console.error(`useLocalData: ${action} failed`, err);
 }
 
 export interface DevToolbar {
@@ -51,8 +56,11 @@ export function useLocalData() {
         if (data.months?.length) setMonths(data.months);
         if (data.weeks?.length) setWeeks(data.weeks);
       })
-      .catch(() => {
-        // Server not available — keep defaults or sessionStorage data
+      .catch((err) => {
+        console.warn(
+          "useLocalData: initial /api/data fetch failed; using defaults",
+          err,
+        );
       });
   }, []);
 
@@ -60,12 +68,16 @@ export function useLocalData() {
     setMonths((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     );
-    apiFetch(`/api/months/${id}`, "PATCH", patch).catch(() => {});
+    apiFetch(`/api/months/${id}`, "PATCH", patch).catch((err) =>
+      logFailure(`updateMonth ${id}`, err),
+    );
   }, []);
 
   const updateWeek = useCallback((id: string, patch: Partial<WeekData>) => {
     setWeeks((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch } : w)));
-    apiFetch(`/api/weeks/${id}`, "PATCH", patch).catch(() => {});
+    apiFetch(`/api/weeks/${id}`, "PATCH", patch).catch((err) =>
+      logFailure(`updateWeek ${id}`, err),
+    );
   }, []);
 
   const addEvent = useCallback(
@@ -140,7 +152,7 @@ export function useLocalData() {
         ),
       );
       apiFetch(`/api/weeks/${weekId}/events/${eventId}`, "PATCH", patch).catch(
-        () => {},
+        (err) => logFailure(`updateEvent ${weekId}/${eventId}`, err),
       );
     },
     [],
@@ -154,8 +166,8 @@ export function useLocalData() {
           : { ...w, events: w.events.filter((e) => e.id !== eventId) },
       ),
     );
-    apiFetch(`/api/weeks/${weekId}/events/${eventId}`, "DELETE").catch(
-      () => {},
+    apiFetch(`/api/weeks/${weekId}/events/${eventId}`, "DELETE").catch((err) =>
+      logFailure(`deleteEvent ${weekId}/${eventId}`, err),
     );
   }, []);
 
@@ -168,7 +180,9 @@ export function useLocalData() {
       const data = JSON.parse(json);
       if (data.months) setMonths(data.months);
       if (data.weeks) setWeeks(data.weeks);
-      apiFetch("/api/data", "PUT", data).catch(() => {});
+      apiFetch("/api/data", "PUT", data).catch((err) =>
+        logFailure("importData PUT", err),
+      );
     } catch (err) {
       throw new Error(`Invalid JSON data: ${(err as Error).message}`, {
         cause: err,

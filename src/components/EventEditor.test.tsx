@@ -179,7 +179,7 @@ describe("EventEditor", () => {
     expect(screen.getByText("Delete")).toBeInTheDocument();
   });
 
-  it("calls onDelete and onClose when Delete clicked and confirmed", () => {
+  it("requires a second click on Confirm? before deleting", () => {
     const onDelete = vi.fn();
     const onClose = vi.fn();
     render(
@@ -193,6 +193,9 @@ describe("EventEditor", () => {
       />,
     );
     fireEvent.click(screen.getByText("Delete"));
+    expect(onDelete).not.toHaveBeenCalled();
+    expect(screen.getByText("Confirm?")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Confirm?"));
     expect(onDelete).toHaveBeenCalledWith("week-1", "evt-1");
     expect(onClose).toHaveBeenCalledOnce();
   });

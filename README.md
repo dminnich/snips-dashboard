@@ -34,7 +34,7 @@ docker compose --profile dev up dev
 ```
 
 - Vite dev server with hot-reload: http://localhost:5173
-- API server: http://localhost:3000
+- API requests are proxied through Vite at `/api/*` (see `vite.config.ts`); the API is not exposed on a host port
 - Source files are bind-mounted — edits in `./src/` are picked up live
 
 ### Run Tests / Lint / Typecheck / Format (quality gate)
@@ -74,7 +74,7 @@ Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside th
 
 The image has three targets:
 - **`runtime`** (default) — production server. Express + SQLite on port 3000. Runs as non-root (uid 999) for rootless Podman.
-- **`dev`** — Vite dev server with hot-reload on port 5173, plus the API on 3000. Source files are bind-mounted for live editing.
+- **`dev`** — Vite dev server with hot-reload on port 5173, plus the API on 3000 (inside the container only; Vite proxies `/api/*` from the host). Source files are bind-mounted for live editing.
 - **`test`** — runs `npm test` (Vitest) and exits.
 
 ### Why container-only?

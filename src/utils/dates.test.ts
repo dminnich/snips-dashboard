@@ -19,8 +19,12 @@ describe("getStatusColor", () => {
     expect(getStatusColor("paid")).toContain("text-emerald-400");
   });
 
-  it("returns default for unknown status", () => {
-    expect(getStatusColor("unknown")).toContain("text-slate-300");
+  it("returns neutral color for unknown status at runtime", () => {
+    expect(
+      getStatusColor(
+        "unknown" as unknown as Parameters<typeof getStatusColor>[0],
+      ),
+    ).toContain("text-slate-300");
   });
 });
 

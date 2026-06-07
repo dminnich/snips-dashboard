@@ -1,3 +1,5 @@
+import type { EventStatus } from "@/types";
+
 export const MONTHS_LEFT = ["January", "February", "March", "April", "May"];
 export const MONTHS_RIGHT = [
   "August",
@@ -20,7 +22,7 @@ export const SUMMER_WEEKS = [
   { number: 10 },
 ];
 
-export function getStatusColor(status: string): string {
+export function getStatusColor(status: EventStatus): string {
   switch (status) {
     case "mission":
       return "text-red-400 border-red-500";
@@ -28,7 +30,10 @@ export function getStatusColor(status: string): string {
       return "text-orange-400 border-orange-500";
     case "paid":
       return "text-emerald-400 border-emerald-500";
-    default:
+    default: {
+      const _exhaustive: never = status;
+      void _exhaustive;
       return "text-slate-300 border-slate-600";
+    }
   }
 }

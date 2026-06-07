@@ -32,6 +32,7 @@ export function EventEditor({
   );
   const [housing, setHousing] = useState(event?.housing ?? "");
   const [status, setStatus] = useState<EventStatus>(event?.status ?? "pending");
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   if (!weekId) return null;
 
@@ -45,9 +46,11 @@ export function EventEditor({
 
   const handleDelete = () => {
     if (isNew) return;
-    if (confirm("Delete this event card?")) {
+    if (confirmingDelete) {
       onDelete(weekId, eventId);
       onClose();
+    } else {
+      setConfirmingDelete(true);
     }
   };
 
@@ -88,7 +91,7 @@ export function EventEditor({
               inputMode="numeric"
               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder) [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
               value={headcount}
-              onChange={(e) => setHeadcount(e.target.value)}
+              onChange={(e) => setHeadcount(e.target.value.replace(/\D/g, ""))}
               placeholder="10"
             />
           </div>
@@ -132,10 +135,14 @@ export function EventEditor({
           <div>
             {!isNew && (
               <button
-                className="rounded border border-red-800 px-4 py-2 text-sm text-red-400 hover:bg-red-900/30"
+                className={`rounded border px-4 py-2 text-sm ${
+                  confirmingDelete
+                    ? "border-red-500 bg-red-900/50 font-semibold text-red-200"
+                    : "border-red-800 text-red-400 hover:bg-red-900/30"
+                }`}
                 onClick={handleDelete}
               >
-                Delete
+                {confirmingDelete ? "Confirm?" : "Delete"}
               </button>
             )}
           </div>

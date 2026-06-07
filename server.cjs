@@ -1,14 +1,92 @@
 const express = require('express')
 const Database = require('better-sqlite3')
 const path = require('path')
+const crypto = require('crypto')
+const fs = require('fs')
+
+const EVENT_STATUSES = ['mission', 'pending', 'paid']
+const MAX_TEXT = 1_000_000
+
+function stringError(value, field, max = MAX_TEXT) {
+  if (typeof value !== 'string') return `${field} must be a string`
+  if (value.length > max) return `${field} too long`
+  return null
+}
+
+function sanitizeHtml(html) {
+  if (typeof html !== 'string') return ''
+  return html
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+    .replace(/<\/?(?:iframe|object|embed|link|meta|base|form|input|button|textarea|select)\b[^>]*>/gi, '')
+    .replace(/\s+on\w+\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, '')
+    .replace(/(\s(?:href|src|action|formaction|background|poster|cite|srcset|xlink:href))\s*=\s*"\s*javascript:[^"]*"/gi, '$1="#"')
+    .replace(/(\s(?:href|src|action|formaction|background|poster|cite|srcset|xlink:href))\s*=\s*'\s*javascript:[^']*'/gi, "$1='#'")
+    .replace(/(\s(?:href|src|action|formaction|background|poster|cite|srcset|xlink:href))\s*=\s*javascript:[^\s>]*/gi, '$1="#"')
+}
+
+function validateData(data) {
+  const errors = []
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    return ['root must be an object']
+  }
+  if (!Array.isArray(data.months)) errors.push('months must be an array')
+  if (!Array.isArray(data.weeks)) errors.push('weeks must be an array')
+  if (errors.length) return errors
+
+  for (const [i, m] of data.months.entries()) {
+    if (!m || typeof m !== 'object') {
+      errors.push(`months[${i}] must be an object`)
+      continue
+    }
+    if (typeof m.id !== 'string') errors.push(`months[${i}].id must be a string`)
+    if (typeof m.name !== 'string') errors.push(`months[${i}].name must be a string`)
+    if (typeof m.content !== 'string') errors.push(`months[${i}].content must be a string`)
+    if (typeof m.subtitle !== 'string') errors.push(`months[${i}].subtitle must be a string`)
+    if (typeof m.specialEvents !== 'string') errors.push(`months[${i}].specialEvents must be a string`)
+  }
+
+  for (const [i, w] of data.weeks.entries()) {
+    if (!w || typeof w !== 'object') {
+      errors.push(`weeks[${i}] must be an object`)
+      continue
+    }
+    if (typeof w.id !== 'string') errors.push(`weeks[${i}].id must be a string`)
+    if (typeof w.weekNumber !== 'number') errors.push(`weeks[${i}].weekNumber must be a number`)
+    if (typeof w.subtitle !== 'string') errors.push(`weeks[${i}].subtitle must be a string`)
+    if (typeof w.specialEvents !== 'string') errors.push(`weeks[${i}].specialEvents must be a string`)
+    if (!Array.isArray(w.events)) {
+      errors.push(`weeks[${i}].events must be an array`)
+      continue
+    }
+    for (const [j, e] of w.events.entries()) {
+      if (!e || typeof e !== 'object') {
+        errors.push(`weeks[${i}].events[${j}] must be an object`)
+        continue
+      }
+      if (typeof e.id !== 'string') errors.push(`weeks[${i}].events[${j}].id must be a string`)
+      if (typeof e.weekId !== 'string') errors.push(`weeks[${i}].events[${j}].weekId must be a string`)
+      if (typeof e.groupName !== 'string') errors.push(`weeks[${i}].events[${j}].groupName must be a string`)
+      if (typeof e.headcount !== 'number') errors.push(`weeks[${i}].events[${j}].headcount must be a number`)
+      if (typeof e.housing !== 'string') errors.push(`weeks[${i}].events[${j}].housing must be a string`)
+      if (typeof e.status !== 'string' || !EVENT_STATUSES.includes(e.status)) {
+        errors.push(`weeks[${i}].events[${j}].status must be one of ${EVENT_STATUSES.join(', ')}`)
+      }
+    }
+  }
+
+  return errors
+}
 
 const app = express()
+app.disable('x-powered-by')
 const PORT = process.env.PORT || 3000
 const DATA_DIR = process.env.DATA_DIR || __dirname
 const DB_PATH = path.join(DATA_DIR, 'data.db')
 
 let db
 try {
+  fs.mkdirSync(DATA_DIR, { recursive: true })
   db = new Database(DB_PATH)
   db.pragma('journal_mode = WAL')
 } catch (err) {
@@ -61,6 +139,28 @@ if (monthCount === 0) {
   console.log('Seeded default data')
 }
 
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('Referrer-Policy', 'no-referrer')
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "connect-src 'self'",
+      "font-src 'self'",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join('; '),
+  )
+  next()
+})
+
 app.use(express.json())
 app.use(express.static(path.join(__dirname, 'dist')))
 
@@ -85,11 +185,23 @@ app.get('/api/data', (req, res) => {
 app.patch('/api/months/:id', (req, res) => {
   try {
     const { content, subtitle, specialEvents } = req.body
-    if (typeof content !== 'string' || content.length > 1_000_000) {
-      return res.status(400).json({ error: 'Invalid content' })
+    if (content !== undefined) {
+      const err1 = stringError(content, 'content')
+      if (err1) return res.status(400).json({ error: err1 })
     }
+    if (subtitle !== undefined) {
+      const err2 = stringError(subtitle, 'subtitle')
+      if (err2) return res.status(400).json({ error: err2 })
+    }
+    if (specialEvents !== undefined) {
+      const err3 = stringError(specialEvents, 'specialEvents')
+      if (err3) return res.status(400).json({ error: err3 })
+    }
+    const cleanContent = sanitizeHtml(content ?? '')
+    const cleanSubtitle = sanitizeHtml(subtitle ?? '')
+    const cleanSpecial = sanitizeHtml(specialEvents ?? '')
     db.prepare('UPDATE months SET content = ?, subtitle = ?, specialEvents = ? WHERE id = ?')
-      .run(content ?? '', subtitle ?? '', specialEvents ?? '', req.params.id)
+      .run(cleanContent, cleanSubtitle, cleanSpecial, req.params.id)
     res.json({ ok: true })
   } catch (err) {
     console.error('PATCH /api/months/:id', err)
@@ -100,8 +212,18 @@ app.patch('/api/months/:id', (req, res) => {
 app.patch('/api/weeks/:id', (req, res) => {
   try {
     const { subtitle, specialEvents } = req.body
+    if (subtitle !== undefined) {
+      const err1 = stringError(subtitle, 'subtitle')
+      if (err1) return res.status(400).json({ error: err1 })
+    }
+    if (specialEvents !== undefined) {
+      const err2 = stringError(specialEvents, 'specialEvents')
+      if (err2) return res.status(400).json({ error: err2 })
+    }
+    const cleanSubtitle = sanitizeHtml(subtitle ?? '')
+    const cleanSpecial = sanitizeHtml(specialEvents ?? '')
     db.prepare('UPDATE weeks SET subtitle = ?, specialEvents = ? WHERE id = ?')
-      .run(subtitle ?? '', specialEvents ?? '', req.params.id)
+      .run(cleanSubtitle, cleanSpecial, req.params.id)
     res.json({ ok: true })
   } catch (err) {
     console.error('PATCH /api/weeks/:id', err)
@@ -118,12 +240,22 @@ app.post('/api/weeks/:id/events', (req, res) => {
     if (groupName.length > 200) {
       return res.status(400).json({ error: 'groupName too long' })
     }
-    const eventId = require('crypto').randomUUID()
+    if (headcount !== undefined && typeof headcount !== 'number') {
+      return res.status(400).json({ error: 'headcount must be a number' })
+    }
+    const err1 = stringError(housing, 'housing')
+    if (err1) return res.status(400).json({ error: err1 })
+    if (status !== undefined && !EVENT_STATUSES.includes(status)) {
+      return res.status(400).json({ error: `status must be one of ${EVENT_STATUSES.join(', ')}` })
+    }
+    const eventId = crypto.randomUUID()
     if (id !== undefined && id !== eventId) {
       console.warn('POST /api/weeks/:id/events: client-supplied id ignored', { clientId: id, serverId: eventId })
     }
+    const cleanGroupName = sanitizeHtml(groupName)
+    const cleanHousing = sanitizeHtml(housing ?? '')
     db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(eventId, req.params.id, groupName, headcount ?? 0, housing ?? '', status ?? 'pending')
+      .run(eventId, req.params.id, cleanGroupName, headcount ?? 0, cleanHousing, status ?? 'pending')
     res.json({ id: eventId })
   } catch (err) {
     console.error('POST /api/weeks/:id/events', err)
@@ -140,11 +272,25 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
       if (typeof groupName !== 'string' || !groupName.trim()) {
         return res.status(400).json({ error: 'groupName must be a non-empty string' })
       }
-      sets.push('groupName = ?'); vals.push(groupName)
+      sets.push('groupName = ?'); vals.push(sanitizeHtml(groupName))
     }
-    if (headcount !== undefined) { sets.push('headcount = ?'); vals.push(headcount) }
-    if (housing !== undefined) { sets.push('housing = ?'); vals.push(housing) }
-    if (status !== undefined) { sets.push('status = ?'); vals.push(status) }
+    if (headcount !== undefined) {
+      if (typeof headcount !== 'number') {
+        return res.status(400).json({ error: 'headcount must be a number' })
+      }
+      sets.push('headcount = ?'); vals.push(headcount)
+    }
+    if (housing !== undefined) {
+      const err1 = stringError(housing, 'housing')
+      if (err1) return res.status(400).json({ error: err1 })
+      sets.push('housing = ?'); vals.push(sanitizeHtml(housing))
+    }
+    if (status !== undefined) {
+      if (!EVENT_STATUSES.includes(status)) {
+        return res.status(400).json({ error: `status must be one of ${EVENT_STATUSES.join(', ')}` })
+      }
+      sets.push('status = ?'); vals.push(status)
+    }
     if (sets.length === 0) return res.json({ ok: true })
     vals.push(req.params.eid)
     db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
@@ -167,27 +313,38 @@ app.delete('/api/weeks/:wid/events/:eid', (req, res) => {
 
 app.put('/api/data', (req, res) => {
   try {
+    const errors = validateData(req.body)
+    if (errors.length) {
+      return res.status(400).json({ error: 'Invalid data shape', details: errors })
+    }
     const { months, weeks } = req.body
     const tx = db.transaction(() => {
       db.exec('DELETE FROM events')
       db.exec('DELETE FROM weeks')
       db.exec('DELETE FROM months')
-      if (months) {
-        const ins = db.prepare('INSERT INTO months (id, name, content, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?)')
-        for (const m of months) {
-          ins.run(m.id, m.name, m.content ?? '', m.subtitle ?? '', m.specialEvents ?? '')
-        }
+      const insMonth = db.prepare('INSERT INTO months (id, name, content, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?)')
+      for (const m of months) {
+        insMonth.run(
+          m.id,
+          m.name,
+          sanitizeHtml(m.content),
+          sanitizeHtml(m.subtitle),
+          sanitizeHtml(m.specialEvents),
+        )
       }
-      if (weeks) {
-        const ins = db.prepare('INSERT INTO weeks (id, weekNumber, subtitle, specialEvents) VALUES (?, ?, ?, ?)')
-        const insEv = db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
-        for (const w of weeks) {
-          ins.run(w.id, w.weekNumber, w.subtitle ?? '', w.specialEvents ?? '')
-          if (w.events) {
-            for (const e of w.events) {
-              insEv.run(e.id, w.id, e.groupName, e.headcount ?? 0, e.housing ?? '', e.status ?? 'pending')
-            }
-          }
+      const insWeek = db.prepare('INSERT INTO weeks (id, weekNumber, subtitle, specialEvents) VALUES (?, ?, ?, ?)')
+      const insEv = db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
+      for (const w of weeks) {
+        insWeek.run(w.id, w.weekNumber, sanitizeHtml(w.subtitle), sanitizeHtml(w.specialEvents))
+        for (const e of w.events) {
+          insEv.run(
+            e.id,
+            e.weekId,
+            sanitizeHtml(e.groupName),
+            e.headcount,
+            sanitizeHtml(e.housing),
+            e.status,
+          )
         }
       }
     })
@@ -196,6 +353,23 @@ app.put('/api/data', (req, res) => {
   } catch (err) {
     console.error('PUT /api/data', err)
     res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+app.use((req, res) => {
+  if (req.path.startsWith('/api/')) {
+    res.status(404).json({ error: 'Not found' })
+  } else {
+    res.status(404).type('text/plain').send('Not found')
+  }
+})
+
+app.use((err, req, res, next) => {
+  console.error(err)
+  if (req.path.startsWith('/api/')) {
+    res.status(err.status || 500).json({ error: err.message || 'Internal server error' })
+  } else {
+    res.status(err.status || 500).type('text/plain').send(err.message || 'Internal server error')
   }
 })
 

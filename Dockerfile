@@ -40,20 +40,16 @@ ENV NODE_ENV=production
 ENV DATA_DIR=/data
 ENV PORT=3000
 
-RUN mkdir -p /data /app && chown -R appuser:appuser /data /app
+RUN mkdir -p /data && chown -R appuser:appuser /data
 
 WORKDIR /app
 
 COPY --from=deps --chown=appuser:appuser /app/node_modules ./node_modules
 COPY --from=build --chown=appuser:appuser /app/dist ./dist
 COPY --from=build --chown=appuser:appuser /app/server.cjs ./server.cjs
-COPY --from=build --chown=appuser:appuser /app/package.json ./package.json
 
 USER 999
 
 EXPOSE 3000
-
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:3000/api/data', r => process.exit(r.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1))"
 
 CMD ["node", "server.cjs"]

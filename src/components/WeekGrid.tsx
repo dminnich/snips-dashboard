@@ -1,6 +1,7 @@
 import { EventCard } from "./EventCard";
 import { EmptyState } from "./EmptyState";
 import { SUMMER_WEEKS } from "@/utils/dates";
+import { sanitizeHtml } from "@/utils/sanitize";
 import type { WeekData } from "@/types";
 
 interface WeekGridProps {
@@ -74,7 +75,9 @@ export function WeekGrid({
         {weekData?.specialEvents && (
           <div
             className="px-1.5 pb-1 text-[10px] text-(--text-muted)"
-            dangerouslySetInnerHTML={{ __html: weekData.specialEvents }}
+            dangerouslySetInnerHTML={{
+              __html: sanitizeHtml(weekData.specialEvents),
+            }}
           />
         )}
       </div>

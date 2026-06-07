@@ -58,4 +58,13 @@ describe("WysiwygEditor", () => {
     const editor = container.querySelector("[contenteditable]") as HTMLElement;
     expect(editor.style.minHeight).toBe("200px");
   });
+
+  it("does not re-sync from html prop after mount (use key prop to switch content)", () => {
+    const { container, rerender } = render(
+      <WysiwygEditor html="<b>first</b>" onChange={vi.fn()} />,
+    );
+    const editor = container.querySelector("[contenteditable]") as HTMLElement;
+    rerender(<WysiwygEditor html="<b>second</b>" onChange={vi.fn()} />);
+    expect(editor.innerHTML).toBe("<b>first</b>");
+  });
 });

@@ -29,14 +29,12 @@ services:
     profiles: ["dev"]
     ports:
       - "5173:5173"
-      - "3000:3000"
     environment:
       - DATA_DIR=/data
     volumes:
       - ./data:/data:z
       - ./src:/app/src:z
       - ./server.cjs:/app/server.cjs:z
-      - ./package.json:/app/package.json:z
       - ./vite.config.ts:/app/vite.config.ts:z
       - ./tsconfig.app.json:/app/tsconfig.app.json:z
       - ./tsconfig.json:/app/tsconfig.json:z
