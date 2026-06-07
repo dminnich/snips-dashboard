@@ -18,6 +18,12 @@ data/
 # Reference build material
 reference/
 
+# Environment files
+.env
+.env.local
+.env.*.local
+.env.*
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -28,3 +34,10 @@ reference/
 *.njsproj
 *.sln
 *.sw?
+
+# Build info
+*.tsbuildinfo
+
+# Testing
+coverage/
+.vitest/

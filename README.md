@@ -111,3 +111,54 @@ React 19, TypeScript, Vite 8, Tailwind CSS v4, Express 5, better-sqlite3
 ## Hosting
 
 Run `docker compose up -d` (or `podman compose up -d`) on any machine (Raspberry Pi, old laptop, etc.) on your LAN. No internet connection required.
+
+## Troubleshooting
+
+### Database errors (rootless Podman)
+
+If container logs show `Failed to open database: unable to open database file`, the SELinux context on `./data` is wrong:
+
+```bash
+rm -rf data
+mkdir -p data
+podman unshare chown -R 999:999 data
+docker compose up -d
+```
+
+### Container won't start
+
+Check logs:
+```bash
+docker compose logs dashboard
+# or: podman compose logs dashboard
+```
+
+### Rebuild after dependency changes
+
+When `package.json` or `package-lock.json` changes:
+```bash
+docker compose up -d --build
+# or: podman compose up -d --build
+```
+
+## API Endpoints
+
+| Method | Path | Purpose |
+|--------|------|---------|
+| GET | `/api/data` | Fetch all months, weeks, events |
+| PUT | `/api/data` | Import full data (replace all) |
+| PATCH | `/api/months/:id` | Update month (content, subtitle, specialEvents) |
+| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents) |
+| POST | `/api/weeks/:id/events` | Add event to week |
+| PATCH | `/api/weeks/:wid/events/:eid` | Update event |
+| DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
+
+### Input Limits
+
+| Field | Max Length |
+|-------|------------|
+| groupName | 200 chars |
+| content | 1 MB |
+| subtitle | 500 chars |
+| specialEvents | 1 MB |
+| housing | 200 chars |

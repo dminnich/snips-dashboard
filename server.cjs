@@ -6,6 +6,8 @@ const fs = require('fs')
 
 const EVENT_STATUSES = ['mission', 'pending', 'paid']
 const MAX_TEXT = 1_000_000
+const MAX_SUBTITLE = 500
+const MAX_HOUSING = 200
 
 function stringError(value, field, max = MAX_TEXT) {
   if (typeof value !== 'string') return `${field} must be a string`
@@ -91,7 +93,7 @@ try {
   db.pragma('journal_mode = WAL')
 } catch (err) {
   console.error('Failed to open database:', err.message)
-  process.exit(1)
+  throw err
 }
 
 db.exec(`
@@ -190,7 +192,7 @@ app.patch('/api/months/:id', (req, res) => {
       if (err1) return res.status(400).json({ error: err1 })
     }
     if (subtitle !== undefined) {
-      const err2 = stringError(subtitle, 'subtitle')
+      const err2 = stringError(subtitle, 'subtitle', MAX_SUBTITLE)
       if (err2) return res.status(400).json({ error: err2 })
     }
     if (specialEvents !== undefined) {
@@ -213,7 +215,7 @@ app.patch('/api/weeks/:id', (req, res) => {
   try {
     const { subtitle, specialEvents } = req.body
     if (subtitle !== undefined) {
-      const err1 = stringError(subtitle, 'subtitle')
+      const err1 = stringError(subtitle, 'subtitle', MAX_SUBTITLE)
       if (err1) return res.status(400).json({ error: err1 })
     }
     if (specialEvents !== undefined) {
@@ -243,7 +245,7 @@ app.post('/api/weeks/:id/events', (req, res) => {
     if (headcount !== undefined && typeof headcount !== 'number') {
       return res.status(400).json({ error: 'headcount must be a number' })
     }
-    const err1 = stringError(housing, 'housing')
+    const err1 = stringError(housing, 'housing', MAX_HOUSING)
     if (err1) return res.status(400).json({ error: err1 })
     if (status !== undefined && !EVENT_STATUSES.includes(status)) {
       return res.status(400).json({ error: `status must be one of ${EVENT_STATUSES.join(', ')}` })
@@ -281,7 +283,7 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
       sets.push('headcount = ?'); vals.push(headcount)
     }
     if (housing !== undefined) {
-      const err1 = stringError(housing, 'housing')
+      const err1 = stringError(housing, 'housing', MAX_HOUSING)
       if (err1) return res.status(400).json({ error: err1 })
       sets.push('housing = ?'); vals.push(sanitizeHtml(housing))
     }
@@ -357,14 +359,10 @@ app.put('/api/data', (req, res) => {
 })
 
 app.use((req, res) => {
-  if (req.path.startsWith('/api/')) {
-    res.status(404).json({ error: 'Not found' })
-  } else {
-    res.status(404).type('text/plain').send('Not found')
-  }
+  res.status(404).json({ error: 'Not found' })
 })
 
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
   console.error(err)
   if (req.path.startsWith('/api/')) {
     res.status(err.status || 500).json({ error: err.message || 'Internal server error' })

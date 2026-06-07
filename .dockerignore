@@ -17,3 +17,8 @@ reference
 *.swo
 coverage
 .vitest-cache
+.npmrc
+.yarnrc
+.pnp.*
+*.md
+!README.md

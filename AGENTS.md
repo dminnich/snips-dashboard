@@ -224,3 +224,33 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 | POST | `/api/weeks/:id/events` | Add event to week |
 | PATCH | `/api/weeks/:wid/events/:eid` | Update event |
 | DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
+
+---
+
+## Security Guidelines
+
+### Input Validation
+- All user input is sanitized server-side (HTML sanitization removes scripts, styles, dangerous tags)
+- Input length limits enforced:
+  - `groupName`: max 200 chars
+  - `content`: max 1 MB
+  - `subtitle`: max 500 chars
+  - `specialEvents`: max 1 MB
+  - `housing`: max 200 chars
+
+### Security Headers
+Server sets the following headers on all responses:
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: no-referrer`
+- `Content-Security-Policy`: restrictive policy (no external resources, no eval, no objects)
+
+### Database
+- SQLite runs in WAL mode for better concurrency
+- Database file stored in bind-mounted `./data` directory
+- Container runs as non-root user (uid 999)
+
+### Deployment Notes
+- This app is designed for LAN-only deployment without authentication
+- Do not expose to the public internet without adding authentication/rate limiting
+- For production internet exposure, add: rate limiting, HTTPS termination, authentication
