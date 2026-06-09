@@ -16,18 +16,30 @@ const MAX_SUBTITLE = 500
 const MAX_HOUSING = 200
 
 function stringError(value, field, max = MAX_TEXT) {
-  if (typeof value !== 'string') return `${field} must be a string`
-  if (value.length > max) return `${field} too long`
+  if (typeof value !== 'string') {
+    const msg = `${field} must be a string`
+    console.log(`[${new Date().toISOString()}] stringError: ${msg}`)
+    return msg
+  }
+  if (value.length > max) {
+    const msg = `${field} too long (max ${max})`
+    console.log(`[${new Date().toISOString()}] stringError: ${msg}`)
+    return msg
+  }
   return null
 }
 
 function sanitizeHtml(html) {
   if (typeof html !== 'string') return ''
-  return DOMPurify.sanitize(html, {
+  const clean = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['b', 'i', 'u', 'font', 'span', 'div', 'p', 'br', 'strong', 'em', 'a'],
     ALLOWED_ATTR: ['size', 'color', 'style', 'href'],
     ALLOWED_URI_REGEXP: /^(?:(?:(?:f|ht)tps?|mailto):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i,
   })
+  if (html && clean !== html) {
+    console.log(`[${new Date().toISOString()}] sanitizeHtml: input was sanitized (${html.length} → ${clean.length} chars)`)
+  }
+  return clean
 }
 
 function validateData(data) {
@@ -80,20 +92,26 @@ function validateData(data) {
     }
   }
 
+  if (errors.length) {
+    console.log(`[${new Date().toISOString()}] validateData: ${errors.length} validation error(s)`)
+  }
   return errors
 }
 
 const app = express()
 app.disable('x-powered-by')
+app.set('trust proxy', 1)
 const PORT = process.env.PORT || 3000
 const DATA_DIR = process.env.DATA_DIR || __dirname
 const DB_PATH = path.join(DATA_DIR, 'data.db')
 
+const dbExists = fs.existsSync(DB_PATH)
 let db
 try {
   fs.mkdirSync(DATA_DIR, { recursive: true })
   db = new Database(DB_PATH)
   db.pragma('journal_mode = WAL')
+  console.log(`[${new Date().toISOString()}] Database: ${dbExists ? 'Found existing' : 'Created new'} database at ${DB_PATH}`)
 } catch (err) {
   console.error('Failed to open database:', err.message)
   throw err
@@ -141,7 +159,7 @@ if (monthCount === 0) {
     insertWeek.run(`week-${i}`, i)
   }
 
-  console.log('Seeded default data')
+  console.log(`[${new Date().toISOString()}] Database: Seeded default data (10 months, 10 weeks)`)
 }
 
 app.use((req, res, next) => {
@@ -165,6 +183,31 @@ app.use((req, res, next) => {
   )
   next()
 })
+
+function nginxTime(date) {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+  const d = String(date.getUTCDate()).padStart(2, '0')
+  return `${d}/${months[date.getUTCMonth()]}/${date.getUTCFullYear()}:${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')} +0000`
+}
+
+function remoteUser(req) {
+  const auth = req.headers.authorization
+  if (!auth || !auth.startsWith('Basic ')) return '-'
+  try {
+    return Buffer.from(auth.slice(6), 'base64').toString().split(':')[0]
+  } catch { return '-' }
+}
+
+app.use((req, res, next) => {
+  const start = Date.now()
+  res.on('finish', () => {
+    const ms = Date.now() - start
+    const bytes = res.getHeader('Content-Length') ?? '-'
+    console.log(`${req.ip} - ${remoteUser(req)} [${nginxTime(new Date())}] "${req.method} ${req.originalUrl} HTTP/${req.httpVersion}" ${res.statusCode} ${bytes} "${req.headers.referer || '-'}" "${req.headers['user-agent'] || '-'}"`)
+  })
+  next()
+})
+
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 100,
@@ -173,6 +216,8 @@ const apiLimiter = rateLimit({
   legacyHeaders: false,
 })
 
+console.log(`[${new Date().toISOString()}] Rate limiter: 100 req/min for /api/`)
+
 const apiWriteLimiter = rateLimit({
   windowMs: 60 * 1000,
   max: 30,
@@ -180,6 +225,8 @@ const apiWriteLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
 })
+
+console.log(`[${new Date().toISOString()}] Rate limiter: 30 req/min for write operations on /api/months/ and /api/weeks/`)
 
 app.use('/api/', apiLimiter)
 app.use(['/api/months/', '/api/weeks/'], apiWriteLimiter)
@@ -193,9 +240,11 @@ const AUTH_PASSWORD = process.env.AUTH_PASSWORD || 'changeme'
 
 function basicAuth(req, res, next) {
   if (!AUTH_ENABLED) return next()
+  if (req.path === '/health') return next()
 
   const authHeader = req.headers.authorization
   if (!authHeader || !authHeader.startsWith('Basic ')) {
+    console.log(`[${new Date().toISOString()}] Auth: missing or malformed authorization header from ${req.ip}`)
     res.setHeader('WWW-Authenticate', 'Basic realm="Dashboard"')
     return res.status(401).json({ error: 'Authentication required' })
   }
@@ -212,6 +261,7 @@ function basicAuth(req, res, next) {
     // Invalid base64 encoding
   }
 
+  console.log(`[${new Date().toISOString()}] Auth: invalid credentials attempt from ${req.ip}`)
   res.setHeader('WWW-Authenticate', 'Basic realm="Dashboard"')
   res.status(401).json({ error: 'Invalid credentials' })
 }
@@ -221,6 +271,8 @@ app.use(basicAuth)
 app.use(express.json())
 app.use(express.static(path.join(__dirname, 'dist')))
 
+
+console.log(`[${new Date().toISOString()}] Route: GET /health`)
 
 // Health Check Endpoint
 app.get('/health', (req, res) => {
@@ -237,6 +289,7 @@ app.get('/api/data', (req, res) => {
     const months = db.prepare('SELECT * FROM months ORDER BY id').all()
     const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
     const events = db.prepare('SELECT * FROM events').all()
+    console.log(`[${new Date().toISOString()}] Data load: ${months.length} months, ${weeks.length} weeks, ${events.length} events`)
 
     const weeksWithEvents = weeks.map((w) => ({
       ...w,
@@ -249,6 +302,8 @@ app.get('/api/data', (req, res) => {
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
+console.log(`[${new Date().toISOString()}] Route: PATCH /api/months/:id`)
 
 app.patch('/api/months/:id', (req, res) => {
   try {
@@ -270,12 +325,15 @@ app.patch('/api/months/:id', (req, res) => {
     const cleanSpecial = sanitizeHtml(specialEvents ?? '')
     db.prepare('UPDATE months SET content = ?, subtitle = ?, specialEvents = ? WHERE id = ?')
       .run(cleanContent, cleanSubtitle, cleanSpecial, req.params.id)
+    console.log(`[${new Date().toISOString()}] Month updated: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
     console.error('PATCH /api/months/:id', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
+console.log(`[${new Date().toISOString()}] Route: PATCH /api/weeks/:id`)
 
 app.patch('/api/weeks/:id', (req, res) => {
   try {
@@ -292,12 +350,15 @@ app.patch('/api/weeks/:id', (req, res) => {
     const cleanSpecial = sanitizeHtml(specialEvents ?? '')
     db.prepare('UPDATE weeks SET subtitle = ?, specialEvents = ? WHERE id = ?')
       .run(cleanSubtitle, cleanSpecial, req.params.id)
+    console.log(`[${new Date().toISOString()}] Week updated: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
     console.error('PATCH /api/weeks/:id', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
+console.log(`[${new Date().toISOString()}] Route: POST /api/weeks/:id/events`)
 
 app.post('/api/weeks/:id/events', (req, res) => {
   try {
@@ -324,12 +385,15 @@ app.post('/api/weeks/:id/events', (req, res) => {
     const cleanHousing = sanitizeHtml(housing ?? '')
     db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
       .run(eventId, req.params.id, cleanGroupName, headcount ?? 0, cleanHousing, status ?? 'pending')
+    console.log(`[${new Date().toISOString()}] Event created: ${eventId} (${cleanGroupName}) in week ${req.params.id}`)
     res.json({ id: eventId })
   } catch (err) {
     console.error('POST /api/weeks/:id/events', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
+console.log(`[${new Date().toISOString()}] Route: PATCH /api/weeks/:wid/events/:eid`)
 
 app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
   try {
@@ -362,6 +426,7 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
     if (sets.length === 0) return res.json({ ok: true })
     vals.push(req.params.eid)
     db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
+    console.log(`[${new Date().toISOString()}] Event updated: ${req.params.eid} (fields: ${sets.map(s => s.split(' ')[0]).join(', ')})`)
     res.json({ ok: true })
   } catch (err) {
     console.error('PATCH /api/weeks/:wid/events/:eid', err)
@@ -369,15 +434,20 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
   }
 })
 
+console.log(`[${new Date().toISOString()}] Route: DELETE /api/weeks/:wid/events/:eid`)
+
 app.delete('/api/weeks/:wid/events/:eid', (req, res) => {
   try {
     db.prepare('DELETE FROM events WHERE id = ?').run(req.params.eid)
+    console.log(`[${new Date().toISOString()}] Event deleted: ${req.params.eid}`)
     res.json({ ok: true })
   } catch (err) {
     console.error('DELETE /api/weeks/:wid/events/:eid', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
+
+console.log(`[${new Date().toISOString()}] Route: PUT /api/data`)
 
 app.put('/api/data', (req, res) => {
   try {
@@ -386,6 +456,7 @@ app.put('/api/data', (req, res) => {
       return res.status(400).json({ error: 'Invalid data shape', details: errors })
     }
     const { months, weeks } = req.body
+    console.log(`[${new Date().toISOString()}] Data replace: replacing all data with ${months.length} months and ${weeks.length} weeks`)
     const tx = db.transaction(() => {
       db.exec('DELETE FROM events')
       db.exec('DELETE FROM weeks')
@@ -417,6 +488,7 @@ app.put('/api/data', (req, res) => {
       }
     })
     tx()
+    console.log(`[${new Date().toISOString()}] Data replace: completed successfully`)
     res.json({ ok: true })
   } catch (err) {
     console.error('PUT /api/data', err)
@@ -425,6 +497,7 @@ app.put('/api/data', (req, res) => {
 })
 
 app.use((req, res) => {
+  console.log(`[${new Date().toISOString()}] 404: ${req.method} ${req.originalUrl}`)
   res.status(404).json({ error: 'Not found' })
 })
 
@@ -437,6 +510,24 @@ app.use((err, req, res) => {
   }
 })
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`)
+function shutdown(signal) {
+  console.log(`[${new Date().toISOString()}] Received ${signal}, shutting down gracefully...`)
+  server.close(() => {
+    db.close()
+    console.log(`[${new Date().toISOString()}] Server closed`)
+    process.exit(0)
+  })
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))
+
+const server = app.listen(PORT, () => {
+  console.log(`[${new Date().toISOString()}] Starting Snips Dashboard server...`)
+  console.log(`[${new Date().toISOString()}] Port: ${PORT}`)
+  console.log(`[${new Date().toISOString()}] Data directory: ${DATA_DIR}`)
+  console.log(`[${new Date().toISOString()}] Database: ${DB_PATH}`)
+  console.log(`[${new Date().toISOString()}] Authentication: ${AUTH_ENABLED ? 'enabled' : 'disabled'}`)
+  console.log(`[${new Date().toISOString()}] Trust proxy: 1`)
+  console.log(`[${new Date().toISOString()}] Server running on http://localhost:${PORT}`)
 })
