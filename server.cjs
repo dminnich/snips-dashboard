@@ -6,6 +6,7 @@ const fs = require('fs')
 const { JSDOM } = require('jsdom')
 const rateLimit = require('express-rate-limit')
 const createDOMPurify = require('dompurify')
+const { startIcsSync, placeDashboardEvent } = require('./sync/icsSync')
 
 const window = new JSDOM('').window
 const DOMPurify = createDOMPurify(window)
@@ -121,7 +122,8 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS months (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    content TEXT DEFAULT '',
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
     subtitle TEXT DEFAULT '',
     specialEvents TEXT DEFAULT ''
   );
@@ -129,38 +131,87 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS weeks (
     id TEXT PRIMARY KEY,
     weekNumber INTEGER NOT NULL,
+    startDate TEXT NOT NULL,
+    endDate TEXT NOT NULL,
     subtitle TEXT DEFAULT '',
     specialEvents TEXT DEFAULT ''
   );
 
   CREATE TABLE IF NOT EXISTS events (
     id TEXT PRIMARY KEY,
-    weekId TEXT NOT NULL,
     groupName TEXT NOT NULL,
     headcount INTEGER DEFAULT 0,
     housing TEXT DEFAULT '',
-    status TEXT DEFAULT 'pending'
+    status TEXT DEFAULT 'pending',
+    origin TEXT DEFAULT 'dashboard',
+    icsUid TEXT,
+    sequence INTEGER DEFAULT 0,
+    lastSeen TEXT,
+    startDate TEXT,
+    endDate TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS event_months (
+    eventId TEXT NOT NULL,
+    monthId TEXT NOT NULL,
+    PRIMARY KEY (eventId, monthId),
+    FOREIGN KEY (eventId) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (monthId) REFERENCES months(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS event_weeks (
+    eventId TEXT NOT NULL,
+    weekId TEXT NOT NULL,
+    PRIMARY KEY (eventId, weekId),
+    FOREIGN KEY (eventId) REFERENCES events(id) ON DELETE CASCADE,
+    FOREIGN KEY (weekId) REFERENCES weeks(id) ON DELETE CASCADE
   );
 `)
 
+const currentYear = new Date().getFullYear();
+
+function getMonthDates(name, year) {
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const monthIndex = monthNames.indexOf(name.toLowerCase());
+  const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
+  const end = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59));
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
+function getWeekDates(weekNumber, year) {
+  // Week 1 starts May 31 at midnight
+  const week1Start = new Date(Date.UTC(year, 4, 31, 0, 0, 0)); // May is month 4 (0-indexed)
+  const start = new Date(week1Start);
+  start.setDate(start.getDate() + (weekNumber - 1) * 7);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 6);
+  end.setHours(23, 59, 59, 999);
+  return { start: start.toISOString(), end: end.toISOString() };
+}
+
 const monthCount = db.prepare('SELECT COUNT(*) as count FROM months').get().count
 if (monthCount === 0) {
-  const insertMonth = db.prepare('INSERT INTO months (id, name) VALUES (?, ?)')
+  const insertMonth = db.prepare('INSERT INTO months (id, name, startDate, endDate) VALUES (?, ?, ?, ?)')
   const months = [
     'January', 'February', 'March', 'April', 'May',
     'August', 'September', 'October', 'November', 'December',
   ]
   for (const name of months) {
-    insertMonth.run(name.toLowerCase(), name)
+    const { start, end } = getMonthDates(name, currentYear);
+    insertMonth.run(name.toLowerCase(), name, start, end)
   }
 
-  const insertWeek = db.prepare('INSERT INTO weeks (id, weekNumber) VALUES (?, ?)')
+  const insertWeek = db.prepare('INSERT INTO weeks (id, weekNumber, startDate, endDate) VALUES (?, ?, ?, ?)')
   for (let i = 1; i <= 10; i++) {
-    insertWeek.run(`week-${i}`, i)
+    const { start, end } = getWeekDates(i, currentYear);
+    insertWeek.run(`week-${i}`, i, start, end)
   }
 
-  console.log(`[${new Date().toISOString()}] Database: Seeded default data (10 months, 10 weeks)`)
+  console.log(`[${new Date().toISOString()}] Database: Seeded default data for year ${currentYear} (10 months, 10 weeks with date ranges)`)
 }
+
+// Start ICS sync scheduler
+startIcsSync(db);
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff')
@@ -289,14 +340,48 @@ app.get('/api/data', (req, res) => {
     const months = db.prepare('SELECT * FROM months ORDER BY id').all()
     const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
     const events = db.prepare('SELECT * FROM events').all()
+    
+    // Get event placements
+    const eventMonths = db.prepare('SELECT eventId, monthId FROM event_months').all()
+    const eventWeeks = db.prepare('SELECT eventId, weekId FROM event_weeks').all()
+    
+    // Build placement maps
+    const eventsByMonth = {}
+    const eventsByWeek = {}
+    
+    for (const em of eventMonths) {
+      if (!eventsByMonth[em.monthId]) eventsByMonth[em.monthId] = []
+      eventsByMonth[em.monthId].push(em.eventId)
+    }
+    
+    for (const ew of eventWeeks) {
+      if (!eventsByWeek[ew.weekId]) eventsByWeek[ew.weekId] = []
+      eventsByWeek[ew.weekId].push(ew.eventId)
+    }
+    
+    // Add events to months
+    const monthsWithEvents = months.map((m) => {
+      const monthEventIds = eventsByMonth[m.id] || []
+      const monthEvents = events.filter(e => monthEventIds.includes(e.id))
+      return {
+        ...m,
+        events: monthEventIds.map(id => events.find(e => e.id === id))
+      }
+    })
+    
+    // Add events to weeks
+    const weeksWithEvents = weeks.map((w) => {
+      const weekEventIds = eventsByWeek[w.id] || []
+      const weekEvents = events.filter(e => weekEventIds.includes(e.id))
+      return {
+        ...w,
+        events: weekEventIds.map(id => events.find(e => e.id === id))
+      }
+    })
+    
     console.log(`[${new Date().toISOString()}] Data load: ${months.length} months, ${weeks.length} weeks, ${events.length} events`)
-
-    const weeksWithEvents = weeks.map((w) => ({
-      ...w,
-      events: events.filter((e) => e.weekId === w.id),
-    }))
-
-    res.json({ months, weeks: weeksWithEvents })
+    
+    res.json({ months: monthsWithEvents, weeks: weeksWithEvents })
   } catch (err) {
     console.error('GET /api/data', err)
     res.status(500).json({ error: 'Internal server error' })
@@ -307,11 +392,7 @@ console.log(`[${new Date().toISOString()}] Route: PATCH /api/months/:id`)
 
 app.patch('/api/months/:id', (req, res) => {
   try {
-    const { content, subtitle, specialEvents } = req.body
-    if (content !== undefined) {
-      const err1 = stringError(content, 'content')
-      if (err1) return res.status(400).json({ error: err1 })
-    }
+    const { subtitle, specialEvents, startDate, endDate } = req.body
     if (subtitle !== undefined) {
       const err2 = stringError(subtitle, 'subtitle', MAX_SUBTITLE)
       if (err2) return res.status(400).json({ error: err2 })
@@ -320,11 +401,20 @@ app.patch('/api/months/:id', (req, res) => {
       const err3 = stringError(specialEvents, 'specialEvents')
       if (err3) return res.status(400).json({ error: err3 })
     }
-    const cleanContent = sanitizeHtml(content ?? '')
     const cleanSubtitle = sanitizeHtml(subtitle ?? '')
     const cleanSpecial = sanitizeHtml(specialEvents ?? '')
-    db.prepare('UPDATE months SET content = ?, subtitle = ?, specialEvents = ? WHERE id = ?')
-      .run(cleanContent, cleanSubtitle, cleanSpecial, req.params.id)
+    
+    const updates = []
+    const values = []
+    if (subtitle !== undefined) { updates.push('subtitle = ?'); values.push(cleanSubtitle) }
+    if (specialEvents !== undefined) { updates.push('specialEvents = ?'); values.push(cleanSpecial) }
+    if (startDate !== undefined) { updates.push('startDate = ?'); values.push(startDate) }
+    if (endDate !== undefined) { updates.push('endDate = ?'); values.push(endDate) }
+    
+    if (updates.length > 0) {
+      values.push(req.params.id)
+      db.prepare(`UPDATE months SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+    }
     console.log(`[${new Date().toISOString()}] Month updated: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
@@ -337,7 +427,7 @@ console.log(`[${new Date().toISOString()}] Route: PATCH /api/weeks/:id`)
 
 app.patch('/api/weeks/:id', (req, res) => {
   try {
-    const { subtitle, specialEvents } = req.body
+    const { subtitle, specialEvents, startDate, endDate } = req.body
     if (subtitle !== undefined) {
       const err1 = stringError(subtitle, 'subtitle', MAX_SUBTITLE)
       if (err1) return res.status(400).json({ error: err1 })
@@ -348,8 +438,18 @@ app.patch('/api/weeks/:id', (req, res) => {
     }
     const cleanSubtitle = sanitizeHtml(subtitle ?? '')
     const cleanSpecial = sanitizeHtml(specialEvents ?? '')
-    db.prepare('UPDATE weeks SET subtitle = ?, specialEvents = ? WHERE id = ?')
-      .run(cleanSubtitle, cleanSpecial, req.params.id)
+    
+    const updates = []
+    const values = []
+    if (subtitle !== undefined) { updates.push('subtitle = ?'); values.push(cleanSubtitle) }
+    if (specialEvents !== undefined) { updates.push('specialEvents = ?'); values.push(cleanSpecial) }
+    if (startDate !== undefined) { updates.push('startDate = ?'); values.push(startDate) }
+    if (endDate !== undefined) { updates.push('endDate = ?'); values.push(endDate) }
+    
+    if (updates.length > 0) {
+      values.push(req.params.id)
+      db.prepare(`UPDATE weeks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+    }
     console.log(`[${new Date().toISOString()}] Week updated: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
@@ -358,11 +458,11 @@ app.patch('/api/weeks/:id', (req, res) => {
   }
 })
 
-console.log(`[${new Date().toISOString()}] Route: POST /api/weeks/:id/events`)
+console.log(`[${new Date().toISOString()}] Route: POST /api/events`)
 
-app.post('/api/weeks/:id/events', (req, res) => {
+app.post('/api/events', (req, res) => {
   try {
-    const { id, groupName, headcount, housing, status } = req.body
+    const { groupName, headcount, housing, status, startDate, endDate } = req.body
     if (typeof groupName !== 'string' || !groupName.trim()) {
       return res.status(400).json({ error: 'groupName is required' })
     }
@@ -377,29 +477,52 @@ app.post('/api/weeks/:id/events', (req, res) => {
     if (status !== undefined && !EVENT_STATUSES.includes(status)) {
       return res.status(400).json({ error: `status must be one of ${EVENT_STATUSES.join(', ')}` })
     }
-    const eventId = crypto.randomUUID()
-    if (id !== undefined && id !== eventId) {
-      console.warn('POST /api/weeks/:id/events: client-supplied id ignored', { clientId: id, serverId: eventId })
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'startDate and endDate are required' })
     }
+    
+    const eventId = crypto.randomUUID()
     const cleanGroupName = sanitizeHtml(groupName)
     const cleanHousing = sanitizeHtml(housing ?? '')
-    db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
-      .run(eventId, req.params.id, cleanGroupName, headcount ?? 0, cleanHousing, status ?? 'pending')
-    console.log(`[${new Date().toISOString()}] Event created: ${eventId} (${cleanGroupName}) in week ${req.params.id}`)
+    
+    db.prepare('INSERT INTO events (id, groupName, headcount, housing, status, origin, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(eventId, cleanGroupName, headcount ?? 0, cleanHousing, status ?? 'pending', 'dashboard', startDate, endDate)
+    
+    // Place event in overlapping months and weeks
+    placeDashboardEvent(db, eventId, startDate, endDate)
+    
+    console.log(`[${new Date().toISOString()}] Event created: ${eventId} (${cleanGroupName})`)
     res.json({ id: eventId })
   } catch (err) {
-    console.error('POST /api/weeks/:id/events', err)
+    console.error('POST /api/events', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-console.log(`[${new Date().toISOString()}] Route: PATCH /api/weeks/:wid/events/:eid`)
+console.log(`[${new Date().toISOString()}] Route: PATCH /api/events/:id`)
 
-app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
+app.patch('/api/events/:id', (req, res) => {
   try {
-    const { groupName, headcount, housing, status } = req.body
+    const event = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id)
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' })
+    }
+    
+    // ICS events can only update status
+    if (event.origin === 'ics') {
+      const { status } = req.body
+      if (status && EVENT_STATUSES.includes(status)) {
+        db.prepare('UPDATE events SET status = ? WHERE id = ?').run(status, req.params.id)
+        console.log(`[${new Date().toISOString()}] ICS event status updated: ${req.params.id} (${status})`)
+      }
+      return res.json({ ok: true })
+    }
+    
+    // Dashboard events can update all fields
+    const { groupName, headcount, housing, status, startDate, endDate } = req.body
     const sets = []
     const vals = []
+    
     if (groupName !== undefined) {
       if (typeof groupName !== 'string' || !groupName.trim()) {
         return res.status(400).json({ error: 'groupName must be a non-empty string' })
@@ -423,26 +546,88 @@ app.patch('/api/weeks/:wid/events/:eid', (req, res) => {
       }
       sets.push('status = ?'); vals.push(status)
     }
+    if (startDate !== undefined) {
+      sets.push('startDate = ?'); vals.push(startDate)
+    }
+    if (endDate !== undefined) {
+      sets.push('endDate = ?'); vals.push(endDate)
+    }
+    
     if (sets.length === 0) return res.json({ ok: true })
-    vals.push(req.params.eid)
+    vals.push(req.params.id)
     db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
-    console.log(`[${new Date().toISOString()}] Event updated: ${req.params.eid} (fields: ${sets.map(s => s.split(' ')[0]).join(', ')})`)
+    
+    // Re-place event if dates changed
+    if (startDate || endDate) {
+      const updatedEvent = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id)
+      db.prepare('DELETE FROM event_months WHERE eventId = ?').run(req.params.id)
+      db.prepare('DELETE FROM event_weeks WHERE eventId = ?').run(req.params.id)
+      placeDashboardEvent(db, req.params.id, updatedEvent.startDate, updatedEvent.endDate)
+    }
+    
+    console.log(`[${new Date().toISOString()}] Event updated: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
-    console.error('PATCH /api/weeks/:wid/events/:eid', err)
+    console.error('PATCH /api/events/:id', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
 
-console.log(`[${new Date().toISOString()}] Route: DELETE /api/weeks/:wid/events/:eid`)
+console.log(`[${new Date().toISOString()}] Route: DELETE /api/events/:id`)
 
-app.delete('/api/weeks/:wid/events/:eid', (req, res) => {
+app.delete('/api/events/:id', (req, res) => {
   try {
-    db.prepare('DELETE FROM events WHERE id = ?').run(req.params.eid)
-    console.log(`[${new Date().toISOString()}] Event deleted: ${req.params.eid}`)
+    db.prepare('DELETE FROM events WHERE id = ?').run(req.params.id)
+    console.log(`[${new Date().toISOString()}] Event deleted: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
-    console.error('DELETE /api/weeks/:wid/events/:eid', err)
+    console.error('DELETE /api/events/:id', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+console.log(`[${new Date().toISOString()}] Route: POST /api/sync/ics`)
+
+app.post('/api/sync/ics', (req, res) => {
+  if (!process.env.ICS_URL) {
+    return res.status(400).json({ error: 'ICS_URL not configured' })
+  }
+  const result = syncNow(db)
+  res.json(result)
+})
+
+console.log(`[${new Date().toISOString()}] Route: POST /api/reset`)
+
+app.post('/api/reset', (req, res) => {
+  try {
+    const tx = db.transaction(() => {
+      // Delete all events
+      db.exec('DELETE FROM events')
+      // Clear event placements (cascade will handle this, but be explicit)
+      db.exec('DELETE FROM event_months')
+      db.exec('DELETE FROM event_weeks')
+      // Clear subtitles and specialEvents
+      db.exec("UPDATE months SET subtitle = '', specialEvents = ''")
+      db.exec("UPDATE weeks SET subtitle = '', specialEvents = ''")
+      
+      // Reset startDate/endDate to current year defaults
+      const months = db.prepare('SELECT * FROM months ORDER BY id').all()
+      for (const m of months) {
+        const { start, end } = getMonthDates(m.name, currentYear)
+        db.prepare('UPDATE months SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, m.id)
+      }
+      
+      const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
+      for (const w of weeks) {
+        const { start, end } = getWeekDates(w.weekNumber, currentYear)
+        db.prepare('UPDATE weeks SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, w.id)
+      }
+    })
+    tx()
+    console.log(`[${new Date().toISOString()}] Database reset: cleared all events, subtitles, specialEvents; reset dates to ${currentYear} defaults`)
+    res.json({ ok: true, year: currentYear })
+  } catch (err) {
+    console.error('POST /api/reset', err)
     res.status(500).json({ error: 'Internal server error' })
   }
 })
@@ -458,32 +643,60 @@ app.put('/api/data', (req, res) => {
     const { months, weeks } = req.body
     console.log(`[${new Date().toISOString()}] Data replace: replacing all data with ${months.length} months and ${weeks.length} weeks`)
     const tx = db.transaction(() => {
+      db.exec('DELETE FROM event_months')
+      db.exec('DELETE FROM event_weeks')
       db.exec('DELETE FROM events')
       db.exec('DELETE FROM weeks')
       db.exec('DELETE FROM months')
-      const insMonth = db.prepare('INSERT INTO months (id, name, content, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?)')
+      
+      const insMonth = db.prepare('INSERT INTO months (id, name, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
       for (const m of months) {
         insMonth.run(
           m.id,
           m.name,
-          sanitizeHtml(m.content),
-          sanitizeHtml(m.subtitle),
-          sanitizeHtml(m.specialEvents),
+          m.startDate || getMonthDates(m.name, currentYear).start,
+          m.endDate || getMonthDates(m.name, currentYear).end,
+          sanitizeHtml(m.subtitle || ''),
+          sanitizeHtml(m.specialEvents || ''),
         )
       }
-      const insWeek = db.prepare('INSERT INTO weeks (id, weekNumber, subtitle, specialEvents) VALUES (?, ?, ?, ?)')
-      const insEv = db.prepare('INSERT INTO events (id, weekId, groupName, headcount, housing, status) VALUES (?, ?, ?, ?, ?, ?)')
+      
+      const insWeek = db.prepare('INSERT INTO weeks (id, weekNumber, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
+      const insEv = db.prepare('INSERT INTO events (id, groupName, headcount, housing, status, origin, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
+      const insEventMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)')
+      const insEventWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)')
+      
       for (const w of weeks) {
-        insWeek.run(w.id, w.weekNumber, sanitizeHtml(w.subtitle), sanitizeHtml(w.specialEvents))
-        for (const e of w.events) {
+        insWeek.run(
+          w.id,
+          w.weekNumber,
+          w.startDate || getWeekDates(w.weekNumber, currentYear).start,
+          w.endDate || getWeekDates(w.weekNumber, currentYear).end,
+          sanitizeHtml(w.subtitle || ''),
+          sanitizeHtml(w.specialEvents || '')
+        )
+        for (const e of w.events || []) {
           insEv.run(
             e.id,
-            e.weekId,
             sanitizeHtml(e.groupName),
-            e.headcount,
-            sanitizeHtml(e.housing),
-            e.status,
+            e.headcount || 0,
+            sanitizeHtml(e.housing || ''),
+            e.status || 'pending',
+            e.origin || 'dashboard',
+            e.startDate,
+            e.endDate,
           )
+          // Place event in this week
+          insEventWeek.run(e.id, w.id)
+          // Also place in overlapping months
+          const eventStart = e.startDate
+          const eventEnd = e.endDate
+          if (eventStart && eventEnd) {
+            const overlappingMonths = db.prepare('SELECT id FROM months WHERE startDate <= ? AND endDate >= ?').all(eventEnd, eventStart)
+            for (const { id: monthId } of overlappingMonths) {
+              insEventMonth.run(e.id, monthId)
+            }
+          }
         }
       }
     })

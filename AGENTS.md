@@ -3,6 +3,8 @@
 ## Project Overview
 Mission Team Board app — React + TypeScript + Tailwind CSS frontend, Express + SQLite backend, all built and run inside Docker/Podman. Displays a 3-column dashboard (months left/right, 10 summer weeks in center) on a 16:9 monitor. No internet required.
 
+**New: ICS Calendar Sync** — Automatically sync events from external ICS calendars (e.g., Apple Calendar, Google Calendar). Events appear in real-time with date-based placement in months and weeks.
+
 ---
 
 ## Container-Only Workflow (Docker / Podman)
@@ -184,6 +186,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 
 ### Testing
 - All tests run inside the `test` Docker/Podman profile: `docker compose --profile test run --rm test`
+- **117 tests** across **16 test files** — components, hooks, utilities, API integration, ICS sync
 - `describe` / `it` / `expect` (Vitest)
 - `render` from `@testing-library/react`
 - Auto-cleanup via `afterEach(cleanup)` in setup file
@@ -203,9 +206,10 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 - **Authentication** (optional): `AUTH_ENABLED`, `AUTH_USERNAME`, `AUTH_PASSWORD` env vars
 - **Rate limiting**: 100 req/min general, 30 req/min write operations
 - **Health endpoint**: `GET /health` returns database connectivity status
+- **ICS Calendar Sync**: Automatic sync from ICS URL at configurable interval (env: `ICS_URL`, `ICS_SYNC_MINUTES`)
+- **Event placement**: Date-based placement in all overlapping months/weeks via junction tables
 - **Validation**:
   - `groupName`: required, max 200 chars
-  - `content`: max 1 MB
   - `subtitle`: max 500 chars
   - `specialEvents`: max 1 MB
   - `housing`: max 200 chars
@@ -225,6 +229,8 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
   - `AUTH_ENABLED`: Enable basic auth (default: `false`)
   - `AUTH_USERNAME`: Auth username (default: `admin`)
   - `AUTH_PASSWORD`: Auth password (default: `changeme`)
+  - `ICS_URL`: URL to ICS calendar feed (optional, enables auto-sync)
+  - `ICS_SYNC_MINUTES`: Sync interval in minutes (default: 60)
 - See [Container-Only Workflow](#container-only-workflow-docker--podman) above for the full host-side setup
 
 ### API Endpoints
@@ -232,11 +238,13 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 |--------|------|---------|
 | GET | `/api/data` | Fetch all months, weeks, events |
 | PUT | `/api/data` | Import full data (replace all) |
-| PATCH | `/api/months/:id` | Update month (content, subtitle, specialEvents) |
-| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents) |
-| POST | `/api/weeks/:id/events` | Add event to week |
-| PATCH | `/api/weeks/:wid/events/:eid` | Update event |
-| DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
+| PATCH | `/api/months/:id` | Update month (subtitle, specialEvents, startDate, endDate) |
+| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents, startDate, endDate) |
+| POST | `/api/events` | Create event (with date range, auto-placed in overlapping periods) |
+| PATCH | `/api/events/:id` | Update event (all fields for dashboard, status-only for ICS) |
+| DELETE | `/api/events/:id` | Delete event |
+| POST | `/api/sync/ics` | Trigger manual ICS sync (admin only) |
+| POST | `/api/reset` | Purge all events, subtitles, specialEvents; reset dates to current year |
 
 ## Security Guidelines
 

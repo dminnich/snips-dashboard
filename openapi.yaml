@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
   title: Snips Dashboard API
-  description: Mission Team Board dashboard API for managing events across months and summer weeks
-  version: 1.0.0
+  description: Mission Team Board dashboard API for managing events across months and summer weeks with ICS calendar sync
+  version: 2.0.0
   contact:
     name: Snips Dashboard
   license:
@@ -18,9 +18,13 @@ tags:
   - name: Data
     description: Full data import/export
   - name: Months
-    description: Month content management
+    description: Month management
   - name: Weeks
-    description: Week and event management
+    description: Week management
+  - name: Events
+    description: Event management
+  - name: Sync
+    description: ICS calendar sync
 
 components:
   securitySchemes:
@@ -52,21 +56,27 @@ components:
         - `pending`: Orange (text-orange-400)
         - `paid`: Green (text-emerald-400)
 
+    EventOrigin:
+      type: string
+      enum: [dashboard, ics]
+      description: |
+        Event origin:
+        - `dashboard`: Created in the dashboard UI
+        - `ics`: Synced from external ICS calendar
+
     Event:
       type: object
       required:
         - id
-        - weekId
         - groupName
         - headcount
         - housing
         - status
+        - origin
       properties:
         id:
           type: string
           format: uuid
-        weekId:
-          type: string
         groupName:
           type: string
           maxLength: 200
@@ -78,35 +88,70 @@ components:
           maxLength: 200
         status:
           $ref: '#/components/schemas/EventStatus'
+        origin:
+          $ref: '#/components/schemas/EventOrigin'
+          default: dashboard
+        icsUid:
+          type: string
+          description: ICS UID for synced events (only for origin=ics)
+        sequence:
+          type: integer
+          default: 0
+          description: ICS sequence number for update detection (only for origin=ics)
+        lastSeen:
+          type: string
+          format: date-time
+          description: Last time this event was seen in ICS feed (only for origin=ics)
+        startDate:
+          type: string
+          format: date-time
+          description: Event start date (UTC ISO)
+        endDate:
+          type: string
+          format: date-time
+          description: Event end date (UTC ISO)
 
     Month:
       type: object
       required:
         - id
         - name
+        - startDate
+        - endDate
       properties:
         id:
           type: string
         name:
           type: string
-        content:
+        startDate:
           type: string
-          description: HTML content (WYSIWYG editor output)
-          maxLength: 1000000
+          format: date-time
+          description: Month start date (UTC ISO)
+        endDate:
+          type: string
+          format: date-time
+          description: Month end date (UTC ISO)
         subtitle:
           type: string
-          description: Date range (e.g., "January 1-31")
+          description: Display text (e.g., "January 1-31")
           maxLength: 500
         specialEvents:
           type: string
           description: HTML content for special events at bottom
           maxLength: 1000000
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/Event'
+          description: Events placed in this month (based on date overlap)
 
     Week:
       type: object
       required:
         - id
         - weekNumber
+        - startDate
+        - endDate
       properties:
         id:
           type: string
@@ -114,9 +159,17 @@ components:
           type: integer
           minimum: 1
           maximum: 10
+        startDate:
+          type: string
+          format: date-time
+          description: Week start date (UTC ISO)
+        endDate:
+          type: string
+          format: date-time
+          description: Week end date (UTC ISO)
         subtitle:
           type: string
-          description: Date range (e.g., "Week 1: June 2-8")
+          description: Display text (e.g., "Week 1: May 31 - Jun 6")
           maxLength: 500
         specialEvents:
           type: string
@@ -126,6 +179,7 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Event'
+          description: Events placed in this week (based on date overlap)
 
     DashboardData:
       type: object
@@ -160,12 +214,36 @@ components:
           type: boolean
           example: true
 
-    CreateEventResponse:
+    SyncResponse:
       type: object
       properties:
-        id:
+        status:
           type: string
-          format: uuid
+          enum: [success, error, already_syncing]
+        added:
+          type: integer
+          description: Number of new events added
+        updated:
+          type: integer
+          description: Number of events updated
+        deleted:
+          type: integer
+          description: Number of events removed (vanished from ICS)
+        skipped:
+          type: integer
+          description: Number of events unchanged
+        error:
+          type: string
+          description: Error message if status is 'error'
+
+    ResetResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        year:
+          type: integer
+          description: Year that dates were reset to
 
   parameters:
     monthId:
@@ -187,7 +265,7 @@ components:
       example: week-1
 
     eventId:
-      name: eid
+      name: id
       in: path
       required: true
       schema:
@@ -205,15 +283,20 @@ components:
           schema:
             type: object
             properties:
-              content:
-                type: string
-                description: HTML content
               subtitle:
                 type: string
-                description: Date range
+                description: Display text
               specialEvents:
                 type: string
                 description: Special events HTML
+              startDate:
+                type: string
+                format: date-time
+                description: Month start date
+              endDate:
+                type: string
+                format: date-time
+                description: Month end date
 
     WeekUpdate:
       description: Week update fields (all optional)
@@ -225,10 +308,18 @@ components:
             properties:
               subtitle:
                 type: string
-                description: Date range
+                description: Display text
               specialEvents:
                 type: string
                 description: Special events HTML
+              startDate:
+                type: string
+                format: date-time
+                description: Week start date
+              endDate:
+                type: string
+                format: date-time
+                description: Week end date
 
     CreateEvent:
       description: New event data
@@ -239,6 +330,8 @@ components:
             type: object
             required:
               - groupName
+              - startDate
+              - endDate
             properties:
               groupName:
                 type: string
@@ -255,6 +348,14 @@ components:
               status:
                 $ref: '#/components/schemas/EventStatus'
                 default: pending
+              startDate:
+                type: string
+                format: date-time
+                description: Event start date (UTC ISO)
+              endDate:
+                type: string
+                format: date-time
+                description: Event end date (UTC ISO)
 
     UpdateEvent:
       description: Event update fields (all optional)
@@ -275,6 +376,12 @@ components:
                 maxLength: 200
               status:
                 $ref: '#/components/schemas/EventStatus'
+              startDate:
+                type: string
+                format: date-time
+              endDate:
+                type: string
+                format: date-time
 
     ImportData:
       description: Full dashboard data for import
@@ -376,7 +483,7 @@ paths:
       tags:
         - Months
       summary: Update month
-      description: Update month content, subtitle, or special events
+      description: Update month subtitle, specialEvents, or date range
       operationId: updateMonth
       parameters:
         - $ref: '#/components/parameters/monthId'
@@ -396,7 +503,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
               example:
-                error: "content too long"
+                error: "subtitle too long"
         '500':
           description: Internal server error
           content:
@@ -409,7 +516,7 @@ paths:
       tags:
         - Weeks
       summary: Update week
-      description: Update week subtitle or special events
+      description: Update week subtitle, specialEvents, or date range
       operationId: updateWeek
       parameters:
         - $ref: '#/components/parameters/weekId'
@@ -435,15 +542,13 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/weeks/{id}/events:
+  /api/events:
     post:
       tags:
-        - Weeks
+        - Events
       summary: Create event
-      description: Add a new event to a week
+      description: Add a new event with date range (auto-placed in overlapping months and weeks)
       operationId: createEvent
-      parameters:
-        - $ref: '#/components/parameters/weekId'
       requestBody:
         $ref: '#/components/requestBodies/CreateEvent'
       responses:
@@ -452,7 +557,11 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateEventResponse'
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
               example:
                 id: "550e8400-e29b-41d4-a716-446655440000"
         '400':
@@ -470,20 +579,14 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /api/weeks/{wid}/events/{eid}:
+  /api/events/{id}:
     patch:
       tags:
-        - Weeks
+        - Events
       summary: Update event
-      description: Update event fields
+      description: Update event fields. For ICS events, only status can be changed.
       operationId: updateEvent
       parameters:
-        - name: wid
-          in: path
-          required: true
-          schema:
-            type: string
-          example: week-1
         - $ref: '#/components/parameters/eventId'
       requestBody:
         $ref: '#/components/requestBodies/UpdateEvent'
@@ -500,6 +603,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '404':
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '500':
           description: Internal server error
           content:
@@ -509,17 +618,11 @@ paths:
 
     delete:
       tags:
-        - Weeks
+        - Events
       summary: Delete event
-      description: Remove an event from a week
+      description: Remove an event
       operationId: deleteEvent
       parameters:
-        - name: wid
-          in: path
-          required: true
-          schema:
-            type: string
-          example: week-1
         - $ref: '#/components/parameters/eventId'
       responses:
         '200':
@@ -528,6 +631,59 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/OkResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/sync/ics:
+    post:
+      tags:
+        - Sync
+      summary: Trigger ICS sync
+      description: Manually trigger ICS calendar sync (admin only)
+      operationId: syncIcs
+      responses:
+        '200':
+          description: Sync completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncResponse'
+        '400':
+          description: ICS_URL not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "ICS_URL not configured"
+        '500':
+          description: Sync failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/reset:
+    post:
+      tags:
+        - Data
+      summary: Reset database
+      description: Purge all events, subtitles, specialEvents; reset dates to current year defaults
+      operationId: resetData
+      responses:
+        '200':
+          description: Database reset successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResetResponse'
+              example:
+                ok: true
+                year: 2026
         '500':
           description: Internal server error
           content:

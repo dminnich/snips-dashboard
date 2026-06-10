@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { MonthData } from "@/types";
 import { Modal } from "./Modal";
 import { WysiwygEditor } from "./WysiwygEditor";
@@ -16,16 +16,29 @@ export function MonthEditor({
   onSave,
   onClose,
 }: MonthEditorProps) {
-  const [content, setContent] = useState(month?.content ?? "");
   const [subtitle, setSubtitle] = useState(month?.subtitle ?? "");
-  const [specialEvents, setSpecialEvents] = useState(
-    month?.specialEvents ?? "",
-  );
+  const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? "");
+  const [startDate, setStartDate] = useState(month?.startDate ?? "");
+  const [endDate, setEndDate] = useState(month?.endDate ?? "");
+
+  useEffect(() => {
+    if (month) {
+      setSubtitle(month.subtitle);
+      setSpecialEvents(month.specialEvents);
+      setStartDate(month.startDate);
+      setEndDate(month.endDate);
+    }
+  }, [month]);
 
   const handleSave = () => {
     if (!month) return;
-    onSave(month.id, { content, subtitle, specialEvents });
+    onSave(month.id, { subtitle, specialEvents, startDate, endDate });
     onClose();
+  };
+
+  const formatDateForInput = (isoString: string) => {
+    if (!isoString) return '';
+    return new Date(isoString).toISOString().slice(0, 10);
   };
 
   return (
@@ -36,25 +49,45 @@ export function MonthEditor({
       title={`Edit ${month?.name ?? ""}`}
     >
       <div className="flex flex-col gap-4">
+        <div className="flex gap-4">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
+              Start Date
+            </label>
+            <input
+              type="date"
+              className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
+              value={formatDateForInput(startDate)}
+              onChange={(e) => {
+                const date = e.target.value ? new Date(e.target.value) : null;
+                setStartDate(date ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)).toISOString() : '');
+              }}
+            />
+          </div>
+          <div className="flex-1">
+            <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
+              End Date
+            </label>
+            <input
+              type="date"
+              className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
+              value={formatDateForInput(endDate)}
+              onChange={(e) => {
+                const date = e.target.value ? new Date(e.target.value) : null;
+                setEndDate(date ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)).toISOString() : '');
+              }}
+            />
+          </div>
+        </div>
+        
         <div>
           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
-            Subtitle (date range)
+            Subtitle (display text)
           </label>
           <input
-            className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text) placeholder:text-(--placeholder)"
+            className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
             value={subtitle}
             onChange={(e) => setSubtitle(e.target.value)}
-            placeholder="e.g. January 1-31"
-          />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
-            Content
-          </label>
-          <WysiwygEditor
-            html={content}
-            onChange={setContent}
-            minHeight="140px"
           />
         </div>
         <div>

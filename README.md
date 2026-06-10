@@ -7,11 +7,15 @@ A full-screen 16:9 dashboard for tracking mission team events across the year. D
 - **3-column grid layout** optimized for 16:9 monitors
 - **Dark/light theme toggle**
 - **Edit/View toggle** — click to switch between display mode and admin CRUD
-- **Add Group** — create event cards with group name, headcount, housing, status
+- **Add Group** — create event cards with group name, headcount, housing, status, and date range
 - **Status colors**: red (mission), orange (pending), green (paid)
-- **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in month content and special events
+- **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in special events
 - **Export/Import JSON** — download/upload board data from the legend bar
 - **Color legend** at the bottom of the screen
+- **ICS Calendar Sync** — automatically sync events from external calendars (Apple Calendar, Google Calendar, etc.)
+- **3-section layout** — Dashboard events (✏️), Calendar events (🍎), Special events (🎆)
+- **Sync status indicator** — shows last sync time and sync progress (admin mode)
+- **Year rollover detection** — prompts to reset and update dates for new year
 
 ## Tech Stack
 
@@ -29,6 +33,7 @@ snips-dashboard/
 │   ├── types/              # TypeScript type definitions
 │   └── test/               # Test files (Vitest + Testing Library)
 ├── server.cjs              # Express API server + SQLite
+├── sync/                   # ICS calendar sync module
 ├── docker-compose.yml      # Docker/Podman configuration
 ├── Dockerfile              # Multi-stage container build
 ├── .env                    # Configuration (optional, gitignored)
@@ -115,11 +120,13 @@ The image has three targets:
 |--------|------|---------|
 | GET | `/api/data` | Fetch all months, weeks, events |
 | PUT | `/api/data` | Import full data (replace all) |
-| PATCH | `/api/months/:id` | Update month (content, subtitle, specialEvents) |
-| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents) |
-| POST | `/api/weeks/:id/events` | Add event to week |
-| PATCH | `/api/weeks/:wid/events/:eid` | Update event |
-| DELETE | `/api/weeks/:wid/events/:eid` | Delete event |
+| PATCH | `/api/months/:id` | Update month (subtitle, specialEvents, startDate, endDate) |
+| PATCH | `/api/weeks/:id` | Update week (subtitle, specialEvents, startDate, endDate) |
+| POST | `/api/events` | Create event (with date range, auto-placed in overlapping periods) |
+| PATCH | `/api/events/:id` | Update event (all fields for dashboard, status-only for ICS) |
+| DELETE | `/api/events/:id` | Delete event |
+| POST | `/api/sync/ics` | Trigger manual ICS sync (admin only) |
+| POST | `/api/reset` | Purge all events, subtitles, specialEvents; reset dates to current year |
 
 ## Troubleshooting
 
@@ -160,6 +167,30 @@ AUTH_USERNAME=admin
 AUTH_PASSWORD=admin
 ```
 
+### ICS Calendar Sync (Optional)
+
+Automatically sync events from external calendars:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ICS_URL` | (none) | URL to ICS calendar feed (e.g., from Apple Calendar or Google Calendar) |
+| `ICS_SYNC_MINUTES` | `60` | How often to sync (in minutes) |
+
+When configured, the app will:
+- Fetch and parse the ICS feed on startup
+- Sync automatically at the specified interval
+- Place events in all overlapping months and weeks based on event dates
+- Remove events that are no longer in the ICS feed
+- Show sync status in the legend bar (admin mode)
+
+**Example (.env):**
+```yaml
+ICS_URL=https://calendar.example.com/feed.ics
+ICS_SYNC_MINUTES=30
+```
+
+**Manual sync:** Click the "🔄 Sync Now" button in the legend bar (admin mode only)
+
 ### Rate Limiting
 
 | Endpoint Type | Limit | Headers |
@@ -172,9 +203,17 @@ AUTH_PASSWORD=admin
 | Field | Max Length |
 |-------|------------|
 | groupName | 200 chars |
-| content | 1 MB |
 | subtitle | 500 chars |
 | specialEvents | 1 MB |
 | housing | 200 chars |
 
 Data is sanitized using dompurify
+
+### Reset Data
+
+Admin users can reset the database by clicking the "⚠️ Reset" button in the legend bar. This will:
+- Delete all events
+- Clear all subtitles and special events
+- Reset month and week date ranges to current year defaults
+
+Use this at the start of each new year to refresh the calendar.
