@@ -24,12 +24,14 @@ export function Dashboard() {
     syncStatus,
     triggerSync,
     resetData,
+    refreshData,
   } = useLocalData();
   const [isAdmin, setIsAdmin] = useState(false);
 
   const [editMonth, setEditMonth] = useState<MonthData | null>(null);
   const [editWeek, setEditWeek] = useState<WeekData | null>(null);
   const [editEvent, setEditEvent] = useState<EventCard | null>(null);
+  const [isAddingEvent, setIsAddingEvent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Year rollover detection
@@ -80,7 +82,21 @@ export function Dashboard() {
   }
 
   function handleAddEvent() {
-    setEditEvent(null);
+    setIsAddingEvent(true);
+  }
+
+  async function handleCreateEvent(
+    data: {
+      groupName: string;
+      headcount: number;
+      housing: string;
+      status: EventCard["status"];
+      startDate: string;
+      endDate: string;
+    },
+  ) {
+    await addEvent(data);
+    refreshData();
   }
 
   function handleSaveEvent(
@@ -88,10 +104,12 @@ export function Dashboard() {
     patch: Partial<EventCard>,
   ) {
     updateEvent(eventId, patch);
+    refreshData();
   }
 
   function handleDeleteEvent(eventId: string) {
     deleteEvent(eventId);
+    refreshData();
   }
 
   const leftMonths = MONTHS_LEFT.map(
@@ -111,8 +129,9 @@ export function Dashboard() {
               month={month}
               isAdmin={isAdmin}
               onEdit={handleEditMonth}
-              onAddEvent={handleAddEvent}
               onEditEvent={handleEditEvent}
+              icsEnabled={syncStatus.icsEnabled}
+              dbEventsDisabled={syncStatus.dbEventsDisabled}
             />
           ))}
         </div>
@@ -123,8 +142,9 @@ export function Dashboard() {
               weeks={weeks}
               isAdmin={isAdmin}
               onEditEvent={handleEditEvent}
-              onAddEvent={handleAddEvent}
               onEditWeek={handleEditWeek}
+              icsEnabled={syncStatus.icsEnabled}
+              dbEventsDisabled={syncStatus.dbEventsDisabled}
             />
           </div>
         </div>
@@ -136,8 +156,9 @@ export function Dashboard() {
               month={month}
               isAdmin={isAdmin}
               onEdit={handleEditMonth}
-              onAddEvent={handleAddEvent}
               onEditEvent={handleEditEvent}
+              icsEnabled={syncStatus.icsEnabled}
+              dbEventsDisabled={syncStatus.dbEventsDisabled}
             />
           ))}
         </div>
@@ -162,6 +183,9 @@ export function Dashboard() {
       />
       <Legend
         isAdmin={isAdmin}
+        onAddEvent={handleAddEvent}
+        icsEnabled={syncStatus.icsEnabled}
+        dbEventsDisabled={syncStatus.dbEventsDisabled}
         onExport={() => {
           const json = toolbar.exportData();
           const blob = new Blob([json], { type: "application/json" });
@@ -214,12 +238,13 @@ export function Dashboard() {
             onClose={() => setEditWeek(null)}
           />
           <EventEditor
-            key={editEvent?.id ?? "event-none"}
+            key={editEvent?.id ?? (isAddingEvent ? 'add' : 'closed')}
             event={editEvent}
-            open={editEvent !== null}
+            open={editEvent !== null || isAddingEvent}
             onSave={handleSaveEvent}
+            onCreate={handleCreateEvent}
             onDelete={handleDeleteEvent}
-            onClose={() => setEditEvent(null)}
+            onClose={() => { setEditEvent(null); setIsAddingEvent(false); }}
           />
         </>
       )}

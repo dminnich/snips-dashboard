@@ -37,4 +37,6 @@ export interface SyncStatus {
   lastSync: string | null;
   nextSync: string | null;
   status: 'idle' | 'syncing' | 'success' | 'error';
+  icsEnabled: boolean;
+  dbEventsDisabled: boolean;
 }

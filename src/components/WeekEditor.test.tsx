@@ -6,6 +6,8 @@ import type { WeekData } from "@/types";
 const baseWeek: WeekData = {
   id: "week-1",
   weekNumber: 1,
+  startDate: new Date().toISOString(),
+  endDate: new Date().toISOString(),
   subtitle: "old subtitle",
   specialEvents: "old events",
   events: [],

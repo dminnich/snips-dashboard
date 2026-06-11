@@ -10,12 +10,13 @@ A full-screen 16:9 dashboard for tracking mission team events across the year. D
 - **Add Group** — create event cards with group name, headcount, housing, status, and date range
 - **Status colors**: red (mission), orange (pending), green (paid)
 - **WYSIWYG editor** — bold, italic, underline, font size (X-Small through X-Large), text color in special events
-- **Export/Import JSON** — download/upload board data from the legend bar
+- **Export/Import JSON** — download/upload board data
 - **Color legend** at the bottom of the screen
-- **ICS Calendar Sync** — automatically sync events from external calendars (Apple Calendar, Google Calendar, etc.)
+- **ICS Calendar Sync** — automatically sync events from public external calendars (Apple Calendar, Google Calendar, etc.)
 - **3-section layout** — Dashboard events (✏️), Calendar events (🍎), Special events (🎆)
 - **Sync status indicator** — shows last sync time and sync progress (admin mode)
 - **Year rollover detection** — prompts to reset and update dates for new year
+
 
 ## Tech Stack
 
@@ -32,8 +33,12 @@ snips-dashboard/
 │   ├── utils/              # Utilities (dates, DOMPurify sanitization)
 │   ├── types/              # TypeScript type definitions
 │   └── test/               # Test files (Vitest + Testing Library)
+├── public/                 # Static assets (favicon, etc.)
 ├── server.cjs              # Express API server + SQLite
 ├── sync/                   # ICS calendar sync module
+├── tsconfig.json           # TypeScript configuration
+├── vite.config.ts          # Vite bundler configuration
+├── eslint.config.js        # ESLint linting rules
 ├── docker-compose.yml      # Docker/Podman configuration
 ├── Dockerfile              # Multi-stage container build
 ├── .env                    # Configuration (optional, gitignored)
@@ -46,7 +51,7 @@ snips-dashboard/
 
 Run `docker compose up -d` (or `podman compose up -d`) on any machine (Raspberry Pi, old laptop, etc.) on your LAN. No internet connection required.
 
-Or turn on authentication and run it on the internet using [Render](https://render.com/) with a persistent disk.
+Or turn on authentication and run it on the internet using something like [Render](https://render.com/) with a persistent disk.
 
 > ## ⚠️  Container-Only Project
 >
@@ -92,6 +97,60 @@ docker compose --profile test run --rm test
 
 Runs Vitest, then ESLint, then `tsc --noEmit`, then `prettier --check` inside the container. Exits with the first non-zero code.
 
+
+## Usage
+### Configuration
+Set `.env` variables according to your needs.
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `ICS_URL` | (none) | URL to ICS calendar feed (e.g., from Apple). Leave unset to disable the feature.|
+| `ICS_SYNC_MINUTES` | `60` | How often to sync (in minutes) |
+| `DISABLE_DB_EVENTS` | `false` | True turns of local data editing to use ICS only. |
+| `AUTH_ENABLED` | `false` | Set to `true` to require authentication |
+| `AUTH_USERNAME` | `admin` | Username for login |
+| `AUTH_PASSWORD` | `changeme` | Password for login |
+
+Calendar sync is one direction. ICS_URL => Dashboard.
+
+### Adding events
+**Local**: Click "Add Group". Fill in the information. Click "Add"
+
+**Sync**: Create in your calendar tool. Use this title standard for consistency: group-name (headcount) housing
+
+### Editing events
+**Local**: Click "Edit". Click on the event. Make changes. Click "Save"
+
+**Sync**:
+
+For everything but status, change it your calendar tool. It will sync automatically. Or you can force it by clicking "Sync Now".
+
+For status, click "Edit". Click on the event. Make changes. Click "Save"
+
+### Deleting events
+
+**Local**: Click "Edit". Click on the event. Click Delete. Click Confirm.
+
+**Sync**: Delete it your calendar tool. It will sync automatically. Or you can force it by clicking "Sync Now".
+
+### Editing Months and Weeks
+
+Click "Edit". Click on the title bar of the month or week. Enter the data and click "Save"
+
+### Backups
+
+Click "Export JSON"
+
+### Restores
+
+Click "Import JSON"
+
+### Starting over / Year change
+
+1. Do a backup if you care about data.
+2. Click Reset
+3. Edit the months and weeks to align dates the way you want
+4. Add events via "Add Group" or "Sync Now"
 
 
 ## Docker
@@ -150,46 +209,7 @@ docker compose up -d --build
 
 ### Authentication (Optional)
 
-Basic authentication can be enabled via environment variables:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `AUTH_ENABLED` | `false` | Set to `true` to require authentication |
-| `AUTH_USERNAME` | `admin` | Username for login |
-| `AUTH_PASSWORD` | `changeme` | Password for login |
-
-When enabled, browsers will show a login prompt before accessing the dashboard.
-
-**Example (.env):**
-```yaml
-AUTH_ENABLED=true
-AUTH_USERNAME=admin
-AUTH_PASSWORD=admin
-```
-
-### ICS Calendar Sync (Optional)
-
-Automatically sync events from external calendars:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `ICS_URL` | (none) | URL to ICS calendar feed (e.g., from Apple Calendar or Google Calendar) |
-| `ICS_SYNC_MINUTES` | `60` | How often to sync (in minutes) |
-
-When configured, the app will:
-- Fetch and parse the ICS feed on startup
-- Sync automatically at the specified interval
-- Place events in all overlapping months and weeks based on event dates
-- Remove events that are no longer in the ICS feed
-- Show sync status in the legend bar (admin mode)
-
-**Example (.env):**
-```yaml
-ICS_URL=https://calendar.example.com/feed.ics
-ICS_SYNC_MINUTES=30
-```
-
-**Manual sync:** Click the "🔄 Sync Now" button in the legend bar (admin mode only)
+Basic authentication can be enabled via environment variables.
 
 ### Rate Limiting
 
@@ -209,11 +229,30 @@ ICS_SYNC_MINUTES=30
 
 Data is sanitized using dompurify
 
-### Reset Data
 
-Admin users can reset the database by clicking the "⚠️ Reset" button in the legend bar. This will:
-- Delete all events
-- Clear all subtitles and special events
-- Reset month and week date ranges to current year defaults
+## Manual test cases
 
-Use this at the start of each new year to refresh the calendar.
+1. No ICS_URL hides apple events, sync button, sync status
+2. DISABLE_DB_EVENTS=true hides Dashboard Events and Add Group
+3. DISABLE_DB_EVENTS=false and ICS_URL shows all buttons and sections
+4. Date ranges for months and weeks are right with a fresh database
+5. Export, Import, Reset, theme, sync, sync status work
+6. Date picker chooses the right dates. Dates that span months show with month names in the header for weeks and months
+7. Subtitle, dates and special events with styling work on months and weeks
+8. Events can be added, edited.  Can't be worked on when not in admin mode
+9. Status coloring works
+10. Edit boxes are the same for ICS and dashbaord. Can only set status on ICS
+11. For ICS and dashboard.
+    1. Single day event in a week shows only in that week
+    2. Single day in a month shows only in that month
+    3. Single day in a week and month show up in both
+    4. Multi-day events within a week show only in that week
+    5. Multi-day events within a month show only in that month
+    6. A date period that spans multiple weeks show up in both weeks
+    7. A date period that spans multiple months shows up in both months
+    8. A date period that spans a week and a month show up in the week and the month
+    9. Event titles look like expected
+12. adding multiple groups or editing multiple groups doesn't have data from the past events. sync refreshes the page
+13. editing an event in a remote calendar shows up
+14. adding an event in a remote calendar shows up
+15. deleting an event in a remote calendar shows up

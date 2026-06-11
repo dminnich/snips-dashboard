@@ -13,9 +13,12 @@ interface LegendProps {
   syncStatus?: SyncStatus;
   onSyncNow?: () => void;
   onReset?: () => void;
+  onAddEvent?: () => void;
+  icsEnabled?: boolean;
+  dbEventsDisabled?: boolean;
 }
 
-export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onReset }: LegendProps) {
+export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onReset, onAddEvent, icsEnabled, dbEventsDisabled }: LegendProps) {
   const formatTime = (isoString: string | null) => {
     if (!isoString) return 'N/A';
     return new Date(isoString).toLocaleString('en-US', {
@@ -30,7 +33,15 @@ export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onR
   return (
     <div className="flex items-center justify-center gap-6 border-t border-(--border) bg-(--bg) p-2 text-xs text-(--text-secondary)">
       {isAdmin && (
-        <div className="absolute left-2 flex gap-2">
+        <div className="absolute left-2 flex items-center gap-2">
+          {!dbEventsDisabled && (
+            <button
+              className="rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)"
+              onClick={onAddEvent}
+            >
+              + Add Group
+            </button>
+          )}
           <button
             className="rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)"
             onClick={onExport}
@@ -44,32 +55,35 @@ export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onR
             Import JSON
           </button>
           <button
-            className="rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)"
-            onClick={onSyncNow}
-            disabled={syncStatus?.status === 'syncing'}
-          >
-            🔄 Sync{syncStatus?.status === 'syncing' ? 'ing...' : ' Now'}
-          </button>
-          <button
             className="rounded bg-red-900 px-2 py-0.5 text-[10px] text-red-200 hover:bg-red-800"
             onClick={onReset}
           >
             ⚠️ Reset
           </button>
-        </div>
-      )}
-      
-      {isAdmin && syncStatus && (
-        <div className="absolute right-2 flex items-center gap-3 text-[10px]">
-          <span>Last sync: {formatTime(syncStatus.lastSync)}</span>
-          {syncStatus.status === 'syncing' && (
-            <span className="text-blue-400 animate-pulse">Syncing...</span>
-          )}
-          {syncStatus.status === 'success' && (
-            <span className="text-emerald-400">✓</span>
-          )}
-          {syncStatus.status === 'error' && (
-            <span className="text-red-400">✗</span>
+          {icsEnabled && (
+            <>
+              <button
+                className="rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)"
+                onClick={onSyncNow}
+                disabled={syncStatus?.status === 'syncing'}
+              >
+                🔄 Sync{syncStatus?.status === 'syncing' ? 'ing...' : ' Now'}
+              </button>
+              {syncStatus && (
+                <div className="flex items-center gap-2 border-l border-(--border) pl-2 text-[10px]">
+                  <span>Last sync: {formatTime(syncStatus.lastSync)}</span>
+                  {syncStatus.status === 'syncing' && (
+                    <span className="text-blue-400 animate-pulse">Syncing...</span>
+                  )}
+                  {syncStatus.status === 'success' && (
+                    <span className="text-emerald-400">✓</span>
+                  )}
+                  {syncStatus.status === 'error' && (
+                    <span className="text-red-400">✗</span>
+                  )}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

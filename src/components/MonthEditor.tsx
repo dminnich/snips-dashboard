@@ -38,7 +38,11 @@ export function MonthEditor({
 
   const formatDateForInput = (isoString: string) => {
     if (!isoString) return '';
-    return new Date(isoString).toISOString().slice(0, 10);
+    const date = new Date(isoString);
+    const year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'America/New_York' });
+    const month = String(date.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    const day = String(date.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   return (
@@ -59,8 +63,14 @@ export function MonthEditor({
               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
               value={formatDateForInput(startDate)}
               onChange={(e) => {
-                const date = e.target.value ? new Date(e.target.value) : null;
-                setStartDate(date ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0)).toISOString() : '');
+                if (!e.target.value) {
+                  setStartDate('');
+                  return;
+                }
+                // User picks a date, store as UTC noon for consistent display
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                setStartDate(utcNoon.toISOString());
               }}
             />
           </div>
@@ -73,8 +83,14 @@ export function MonthEditor({
               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
               value={formatDateForInput(endDate)}
               onChange={(e) => {
-                const date = e.target.value ? new Date(e.target.value) : null;
-                setEndDate(date ? new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59)).toISOString() : '');
+                if (!e.target.value) {
+                  setEndDate('');
+                  return;
+                }
+                // User picks a date, store as UTC noon for consistent display
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                setEndDate(utcNoon.toISOString());
               }}
             />
           </div>

@@ -6,7 +6,7 @@ const fs = require('fs')
 const { JSDOM } = require('jsdom')
 const rateLimit = require('express-rate-limit')
 const createDOMPurify = require('dompurify')
-const { startIcsSync, placeDashboardEvent } = require('./sync/icsSync')
+const { startIcsSync, syncNow, placeDashboardEvent } = require('./sync/icsSync')
 
 const window = new JSDOM('').window
 const DOMPurify = createDOMPurify(window)
@@ -59,7 +59,6 @@ function validateData(data) {
     }
     if (typeof m.id !== 'string') errors.push(`months[${i}].id must be a string`)
     if (typeof m.name !== 'string') errors.push(`months[${i}].name must be a string`)
-    if (typeof m.content !== 'string') errors.push(`months[${i}].content must be a string`)
     if (typeof m.subtitle !== 'string') errors.push(`months[${i}].subtitle must be a string`)
     if (typeof m.specialEvents !== 'string') errors.push(`months[${i}].specialEvents must be a string`)
   }
@@ -83,7 +82,6 @@ function validateData(data) {
         continue
       }
       if (typeof e.id !== 'string') errors.push(`weeks[${i}].events[${j}].id must be a string`)
-      if (typeof e.weekId !== 'string') errors.push(`weeks[${i}].events[${j}].weekId must be a string`)
       if (typeof e.groupName !== 'string') errors.push(`weeks[${i}].events[${j}].groupName must be a string`)
       if (typeof e.headcount !== 'number') errors.push(`weeks[${i}].events[${j}].headcount must be a number`)
       if (typeof e.housing !== 'string') errors.push(`weeks[${i}].events[${j}].housing must be a string`)
@@ -173,19 +171,25 @@ const currentYear = new Date().getFullYear();
 function getMonthDates(name, year) {
   const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   const monthIndex = monthNames.indexOf(name.toLowerCase());
-  const start = new Date(Date.UTC(year, monthIndex, 1, 0, 0, 0));
-  const end = new Date(Date.UTC(year, monthIndex + 1, 0, 23, 59, 59));
+  
+  // Store dates at UTC noon to avoid timezone display issues
+  // 2026-03-01T12:00:00Z displays as March 1 in all US timezones
+  const start = new Date(Date.UTC(year, monthIndex, 1, 12, 0, 0));
+  const end = new Date(Date.UTC(year, monthIndex + 1, 0, 12, 0, 0));
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
 function getWeekDates(weekNumber, year) {
-  // Week 1 starts May 31 at midnight
-  const week1Start = new Date(Date.UTC(year, 4, 31, 0, 0, 0)); // May is month 4 (0-indexed)
+  // Week 1 starts May 31 at midnight NY time
+  // Store at UTC noon to avoid timezone display issues
+  const week1Start = new Date(Date.UTC(year, 4, 31, 12, 0, 0)); // May is month 4 (0-indexed)
   const start = new Date(week1Start);
   start.setDate(start.getDate() + (weekNumber - 1) * 7);
   const end = new Date(start);
   end.setDate(end.getDate() + 6);
-  end.setHours(23, 59, 59, 999);
+  // Set to noon UTC for consistent display
+  start.setUTCHours(12, 0, 0, 0);
+  end.setUTCHours(12, 0, 0, 0);
   return { start: start.toISOString(), end: end.toISOString() };
 }
 
@@ -381,7 +385,12 @@ app.get('/api/data', (req, res) => {
     
     console.log(`[${new Date().toISOString()}] Data load: ${months.length} months, ${weeks.length} weeks, ${events.length} events`)
     
-    res.json({ months: monthsWithEvents, weeks: weeksWithEvents })
+    res.json({ 
+      months: monthsWithEvents, 
+      weeks: weeksWithEvents,
+      icsEnabled: !!process.env.ICS_URL,
+      dbEventsDisabled: process.env.DISABLE_DB_EVENTS === 'true'
+    })
   } catch (err) {
     console.error('GET /api/data', err)
     res.status(500).json({ error: 'Internal server error' })
@@ -588,12 +597,21 @@ app.delete('/api/events/:id', (req, res) => {
 
 console.log(`[${new Date().toISOString()}] Route: POST /api/sync/ics`)
 
-app.post('/api/sync/ics', (req, res) => {
+app.post('/api/sync/ics', async (req, res) => {
   if (!process.env.ICS_URL) {
+    console.error(`[${new Date().toISOString()}] POST /api/sync/ics: ICS_URL not configured`)
     return res.status(400).json({ error: 'ICS_URL not configured' })
   }
-  const result = syncNow(db)
-  res.json(result)
+  try {
+    const result = await syncNow(db)
+    if (result.status === 'error') {
+      console.error(`[${new Date().toISOString()}] POST /api/sync/ics: sync failed - ${result.error}`)
+    }
+    res.json(result)
+  } catch (err) {
+    console.error(`[${new Date().toISOString()}] POST /api/sync/ics: ${err.message}`)
+    res.status(500).json({ error: err.message })
+  }
 })
 
 console.log(`[${new Date().toISOString()}] Route: POST /api/reset`)

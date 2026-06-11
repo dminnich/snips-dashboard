@@ -6,9 +6,11 @@ import type { MonthData } from "@/types";
 const baseMonth: MonthData = {
   id: "january",
   name: "January",
-  content: "Some content",
+  startDate: new Date().toISOString(),
+  endDate: new Date().toISOString(),
   subtitle: "Jan 1-31",
   specialEvents: "Birthday",
+  events: [],
 };
 
 describe("MonthBlock", () => {
@@ -20,11 +22,6 @@ describe("MonthBlock", () => {
   it("renders subtitle when present", () => {
     render(<MonthBlock month={baseMonth} />);
     expect(screen.getByText("Jan 1-31")).toBeInTheDocument();
-  });
-
-  it("renders content", () => {
-    render(<MonthBlock month={baseMonth} />);
-    expect(screen.getByText("Some content")).toBeInTheDocument();
   });
 
   it("renders special events", () => {

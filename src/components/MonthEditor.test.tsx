@@ -6,9 +6,11 @@ import type { MonthData } from "@/types";
 const baseMonth: MonthData = {
   id: "january",
   name: "January",
-  content: "old content",
+  startDate: new Date().toISOString(),
+  endDate: new Date().toISOString(),
   subtitle: "old subtitle",
   specialEvents: "old special",
+  events: [],
 };
 
 describe("MonthEditor", () => {

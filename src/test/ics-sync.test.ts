@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import Database from "better-sqlite3";
+// @ts-expect-error - no type declarations for sync module
 import { startIcsSync, syncNow, placeDashboardEvent } from "../../sync/icsSync.js";
 
 describe("ICS Sync", () => {
@@ -65,7 +66,7 @@ describe("ICS Sync", () => {
     db.prepare("INSERT INTO weeks (id, weekNumber, startDate, endDate) VALUES (?, ?, ?, ?)").run(
       "week-1", 1,
       new Date(Date.UTC(currentYear, 4, 31, 0, 0, 0)).toISOString(),
-      new Date(Date.UTC(currentYear, 4, 31, 0, 0, 0)); 
+      new Date(Date.UTC(currentYear, 4, 31, 0, 0, 0)).toISOString()
     );
   });
 
@@ -82,7 +83,7 @@ describe("ICS Sync", () => {
 
       placeDashboardEvent(db, eventId, startDate, endDate);
 
-      const placements = db.prepare("SELECT * FROM event_months WHERE eventId = ?").all(eventId);
+      const placements = db.prepare("SELECT * FROM event_months WHERE eventId = ?").all(eventId) as Array<{ eventId: string; monthId: string }>;
       expect(placements.length).toBeGreaterThan(0);
       expect(placements.some(p => p.monthId === "may")).toBe(true);
     });
@@ -99,7 +100,7 @@ describe("ICS Sync", () => {
 
       placeDashboardEvent(db, eventId, startDate, endDate);
 
-      const placements = db.prepare("SELECT * FROM event_months WHERE eventId = ?").all(eventId);
+      const placements = db.prepare("SELECT * FROM event_months WHERE eventId = ?").all(eventId) as Array<{ eventId: string; monthId: string }>;
       expect(placements.length).toBe(2);
       expect(placements.some(p => p.monthId === "may")).toBe(true);
       expect(placements.some(p => p.monthId === "june")).toBe(true);
@@ -132,7 +133,7 @@ describe("ICS Sync", () => {
       const envBackup = process.env.ICS_URL;
       process.env.ICS_URL = "http://test.example.com/calendar.ics";
 
-      const firstSync = syncNow(db);
+      syncNow(db);
       const secondSync = await syncNow(db);
 
       expect(secondSync.status).toBe("already_syncing");

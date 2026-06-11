@@ -7,6 +7,8 @@ import type { WeekData } from "@/types";
 const defaultWeeks: WeekData[] = SUMMER_WEEKS.map((w) => ({
   id: `week-${w.number}`,
   weekNumber: w.number,
+  startDate: new Date().toISOString(),
+  endDate: new Date().toISOString(),
   subtitle: "",
   specialEvents: "",
   events: [],

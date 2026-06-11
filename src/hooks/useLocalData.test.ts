@@ -37,7 +37,6 @@ describe("useLocalData", () => {
   it("all months start empty", () => {
     const { result } = renderHook(() => useLocalData());
     for (const m of result.current.months) {
-      expect(m.content).toBe("");
       expect(m.subtitle).toBe("");
       expect(m.specialEvents).toBe("");
     }
@@ -52,9 +51,9 @@ describe("useLocalData", () => {
 
   it("updateMonth patches month data", () => {
     const { result } = renderHook(() => useLocalData());
-    act(() => result.current.updateMonth("january", { content: "Hello" }));
+    act(() => result.current.updateMonth("january", { subtitle: "Hello" }));
     const jan = result.current.months.find((m) => m.id === "january");
-    expect(jan?.content).toBe("Hello");
+    expect(jan?.subtitle).toBe("Hello");
   });
 
   it("updateWeek patches week data", () => {
@@ -68,11 +67,13 @@ describe("useLocalData", () => {
     const { result } = renderHook(() => useLocalData());
     let event;
     await act(async () => {
-      event = await result.current.addEvent("week-1", {
+      event = await result.current.addEvent({
         groupName: "Test Group",
         headcount: 25,
         housing: "B1",
         status: "paid",
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
       });
     });
     expect(event).toBeDefined();
@@ -86,15 +87,17 @@ describe("useLocalData", () => {
     const { result } = renderHook(() => useLocalData());
     let event;
     await act(async () => {
-      event = await result.current.addEvent("week-1", {
+      event = await result.current.addEvent({
         groupName: "Old Name",
         headcount: 10,
         housing: "",
         status: "pending",
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
       });
     });
     act(() => {
-      result.current.updateEvent("week-1", event!.id, {
+      result.current.updateEvent(event!.id, {
         groupName: "New Name",
       });
     });
@@ -106,15 +109,17 @@ describe("useLocalData", () => {
     const { result } = renderHook(() => useLocalData());
     let event;
     await act(async () => {
-      event = await result.current.addEvent("week-1", {
+      event = await result.current.addEvent({
         groupName: "To Delete",
         headcount: 5,
         housing: "",
         status: "pending",
+        startDate: new Date().toISOString(),
+        endDate: new Date().toISOString(),
       });
     });
     act(() => {
-      result.current.deleteEvent("week-1", event!.id);
+      result.current.deleteEvent(event!.id);
     });
     const w1 = result.current.weeks.find((w) => w.id === "week-1");
     expect(w1?.events).toHaveLength(0);
@@ -161,7 +166,7 @@ describe("useLocalData", () => {
       result.current.toolbar.importData(payload);
     });
     const jan = result.current.months.find((m) => m.id === "january");
-    expect(jan?.content).toBe("imported");
+    expect(jan?.subtitle).toBe("imported");
     const w1 = result.current.weeks.find((w) => w.id === "week-1");
     expect(w1?.subtitle).toBe("imported week");
   });
@@ -182,7 +187,7 @@ describe("useLocalData failure surfacing (S-2)", () => {
 
   it("updateMonth logs a failure instead of swallowing it", async () => {
     const { result } = renderHook(() => useLocalData());
-    act(() => result.current.updateMonth("january", { content: "x" }));
+    act(() => result.current.updateMonth("january", { subtitle: "x" }));
     await waitFor(() => expect(errorSpy).toHaveBeenCalled());
     const msg = String(errorSpy.mock.calls[0][0]);
     expect(msg).toContain("updateMonth");
@@ -202,18 +207,20 @@ describe("useLocalData failure surfacing (S-2)", () => {
     let event: Awaited<ReturnType<typeof result.current.addEvent>> | undefined;
     await act(async () => {
       try {
-        event = await result.current.addEvent("week-1", {
+        event = await result.current.addEvent({
           groupName: "g",
           headcount: 1,
           housing: "",
           status: "pending",
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
         });
       } catch {
         event = undefined;
       }
     });
     act(() =>
-      result.current.updateEvent("week-1", "synthetic-id", { groupName: "z" }),
+      result.current.updateEvent("synthetic-id", { groupName: "z" }),
     );
     await waitFor(() =>
       expect(
@@ -229,17 +236,19 @@ describe("useLocalData failure surfacing (S-2)", () => {
     const { result } = renderHook(() => useLocalData());
     await act(async () => {
       try {
-        await result.current.addEvent("week-1", {
+        await result.current.addEvent({
           groupName: "g",
           headcount: 1,
           housing: "",
           status: "pending",
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
         });
       } catch (_e) {
         void _e;
       }
     });
-    act(() => result.current.deleteEvent("week-1", "synthetic-id"));
+    act(() => result.current.deleteEvent("synthetic-id"));
     await waitFor(() =>
       expect(
         errorSpy.mock.calls.some((c: unknown[]) =>

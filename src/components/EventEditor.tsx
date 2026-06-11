@@ -12,6 +12,7 @@ interface EventEditorProps {
   event: EventCard | null;
   open: boolean;
   onSave: (eventId: string, patch: Partial<EventCard>) => void;
+  onCreate?: (data: { groupName: string; headcount: number; housing: string; status: EventStatus; startDate: string; endDate: string }) => void;
   onDelete: (eventId: string) => void;
   onClose: () => void;
 }
@@ -20,11 +21,18 @@ export function EventEditor({
   event,
   open,
   onSave,
+  onCreate,
   onDelete,
   onClose,
 }: EventEditorProps) {
   const isNew = !event;
   const isIcs = event?.origin === 'ics';
+  
+  // Default to current date at noon UTC for new events
+  const getDefaultDate = () => {
+    const now = new Date();
+    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)).toISOString();
+  };
   
   const [groupName, setGroupName] = useState(event?.groupName ?? "");
   const [headcount, setHeadcount] = useState(
@@ -32,11 +40,11 @@ export function EventEditor({
   );
   const [housing, setHousing] = useState(event?.housing ?? "");
   const [status, setStatus] = useState<EventStatus>(event?.status ?? "pending");
-  const [startDate, setStartDate] = useState(event?.startDate ?? "");
-  const [endDate, setEndDate] = useState(event?.endDate ?? "");
+  const [startDate, setStartDate] = useState(event?.startDate ?? (isNew ? getDefaultDate() : ""));
+  const [endDate, setEndDate] = useState(event?.endDate ?? (isNew ? getDefaultDate() : ""));
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  // Reset form when event changes
+  // Reset form when event changes (for editing existing events)
   useEffect(() => {
     if (event) {
       setGroupName(event.groupName);
@@ -45,22 +53,41 @@ export function EventEditor({
       setStatus(event.status ?? "pending");
       setStartDate(event.startDate ?? "");
       setEndDate(event.endDate ?? "");
+    } else if (isNew) {
+      // For new events, reset to defaults
+      setGroupName("");
+      setHeadcount("");
+      setHousing("");
+      setStatus("pending");
+      setStartDate(getDefaultDate());
+      setEndDate(getDefaultDate());
     }
   }, [event]);
 
   const eventId = event?.id ?? "";
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const hc = headcount === "" ? 0 : Number(headcount);
-    const patch: Partial<EventCard> = { 
-      groupName, 
-      headcount: hc, 
-      housing, 
-      status,
-      startDate,
-      endDate,
-    };
-    onSave(eventId, patch);
+    if (isNew) {
+      await onCreate?.({ 
+        groupName, 
+        headcount: hc, 
+        housing, 
+        status,
+        startDate,
+        endDate,
+      });
+    } else {
+      const patch: Partial<EventCard> = { 
+        groupName, 
+        headcount: hc, 
+        housing, 
+        status,
+        startDate,
+        endDate,
+      };
+      onSave(eventId, patch);
+    }
     onClose();
   };
 
@@ -76,12 +103,11 @@ export function EventEditor({
 
   const formatDateForInput = (isoString: string) => {
     if (!isoString) return '';
-    return new Date(isoString).toISOString().slice(0, 16);
-  };
-
-  const formatDateForDisplay = (isoString: string) => {
-    if (!isoString) return '';
-    return new Date(isoString).toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+    const date = new Date(isoString);
+    const year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'America/New_York' });
+    const month = String(date.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    const day = String(date.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   };
 
   // For ICS events, show read-only modal with status selector
@@ -94,48 +120,89 @@ export function EventEditor({
       >
         <div className="flex flex-col gap-4">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
+            <label
+              htmlFor="ics-group-name"
+              className="mb-1 block text-xs font-semibold text-(--text-secondary)"
+            >
               Group Name
             </label>
-            <div className="rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted)">
-              {groupName}
-            </div>
+            <input
+              id="ics-group-name"
+              className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70"
+              value={groupName}
+              disabled
+              readOnly
+            />
           </div>
           
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
-              Start Date
-            </label>
-            <div className="rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted)">
-              {formatDateForDisplay(startDate)}
+          <div className="flex gap-4">
+            <div className="flex-1">
+              <label
+                htmlFor="ics-start-date"
+                className="mb-1 block text-xs font-semibold text-(--text-secondary)"
+              >
+                Start Date
+              </label>
+              <input
+                id="ics-start-date"
+                type="date"
+                className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70"
+                value={formatDateForInput(startDate)}
+                disabled
+                readOnly
+              />
             </div>
-          </div>
-          
-          <div>
-            <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
-              End Date
-            </label>
-            <div className="rounded border border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted)">
-              {formatDateForDisplay(endDate)}
+            <div className="flex-1">
+              <label
+                htmlFor="ics-end-date"
+                className="mb-1 block text-xs font-semibold text-(--text-secondary)"
+              >
+                End Date
+              </label>
+              <input
+                id="ics-end-date"
+                type="date"
+                className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70"
+                value={formatDateForInput(endDate)}
+                disabled
+                readOnly
+              />
             </div>
           </div>
           
           <div className="flex gap-4">
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
+              <label
+                htmlFor="ics-headcount"
+                className="mb-1 block text-xs font-semibold text-(--text-secondary)"
+              >
                 Headcount
               </label>
-              <div className="rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted)">
-                {headcount || '0'}
-              </div>
+              <input
+                id="ics-headcount"
+                type="text"
+                inputMode="numeric"
+                className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                value={headcount || '0'}
+                disabled
+                readOnly
+              />
             </div>
             <div className="flex-1">
-              <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
+              <label
+                htmlFor="ics-housing"
+                className="mb-1 block text-xs font-semibold text-(--text-secondary)"
+              >
                 Housing
               </label>
-              <div className="rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted)">
-                {housing || '-'}
-              </div>
+              <input
+                id="ics-housing"
+                type="text"
+                className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70"
+                value={housing || '-'}
+                disabled
+                readOnly
+              />
             </div>
           </div>
           
@@ -226,10 +293,19 @@ export function EventEditor({
             </label>
             <input
               id="event-start-date"
-              type="datetime-local"
+              type="date"
               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
               value={formatDateForInput(startDate)}
-              onChange={(e) => setStartDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setStartDate('');
+                  return;
+                }
+                // User picks date, store as UTC noon
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                setStartDate(utcNoon.toISOString());
+              }}
             />
           </div>
           <div className="flex-1">
@@ -241,10 +317,19 @@ export function EventEditor({
             </label>
             <input
               id="event-end-date"
-              type="datetime-local"
+              type="date"
               className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text)"
               value={formatDateForInput(endDate)}
-              onChange={(e) => setEndDate(e.target.value ? new Date(e.target.value).toISOString() : '')}
+              onChange={(e) => {
+                if (!e.target.value) {
+                  setEndDate('');
+                  return;
+                }
+                // User picks date, store as UTC noon
+                const [year, month, day] = e.target.value.split('-').map(Number);
+                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                setEndDate(utcNoon.toISOString());
+              }}
             />
           </div>
         </div>

@@ -1,15 +1,17 @@
 import type { MonthData } from "@/types";
+import { getStatusColor } from "@/utils/dates";
 import { sanitizeHtml } from "@/utils/sanitize";
 
 interface MonthBlockProps {
   month: MonthData;
   isAdmin?: boolean;
   onEdit?: (id: string) => void;
-  onAddEvent?: (monthId: string) => void;
   onEditEvent?: (eventId: string) => void;
+  icsEnabled?: boolean;
+  dbEventsDisabled?: boolean;
 }
 
-export function MonthBlock({ month, isAdmin, onEdit, onAddEvent, onEditEvent }: MonthBlockProps) {
+export function MonthBlock({ month, isAdmin, onEdit, onEditEvent, icsEnabled, dbEventsDisabled }: MonthBlockProps) {
   const dashboardEvents = month.events.filter(e => e.origin === 'dashboard');
   const icsEvents = month.events.filter(e => e.origin === 'ics');
 
@@ -18,9 +20,9 @@ export function MonthBlock({ month, isAdmin, onEdit, onAddEvent, onEditEvent }: 
     const startDate = new Date(start);
     const endDate = new Date(end);
     const startMonth = startDate.toLocaleString('en-US', { month: 'short', timeZone: 'America/New_York' });
-    const startDay = startDate.getDate();
+    const startDay = startDate.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
     const endMonth = endDate.toLocaleString('en-US', { month: 'short', timeZone: 'America/New_York' });
-    const endDay = endDate.getDate();
+    const endDay = endDate.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
     if (startMonth === endMonth) {
       return `${startMonth} ${startDay}-${endDay}`;
     }
@@ -29,8 +31,8 @@ export function MonthBlock({ month, isAdmin, onEdit, onAddEvent, onEditEvent }: 
 
   const formatEventTitle = (event: { groupName: string; startDate?: string; endDate?: string }) => {
     if (event.startDate && event.endDate) {
-      const startDay = new Date(event.startDate).getDate();
-      const endDay = new Date(event.endDate).getDate();
+      const startDay = new Date(event.startDate).toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
+      const endDay = new Date(event.endDate).toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
       return `${startDay} - ${endDay} ${event.groupName}`;
     }
     return event.groupName;
@@ -74,78 +76,70 @@ export function MonthBlock({ month, isAdmin, onEdit, onAddEvent, onEditEvent }: 
       {/* Content area with 3 sections */}
       <div className="flex flex-1 flex-col gap-1 overflow-y-auto p-2 text-xs text-(--text)">
         {/* Section 1: Dashboard Events */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
-            <span>✏️</span>
-            <span>Dashboard Events</span>
-          </div>
-          {dashboardEvents.length > 0 ? (
-            <div className="space-y-0.5">
-              {dashboardEvents.map(event => (
-                <div key={event.id} data-event-card>
-                  <div
-                    className="cursor-pointer rounded border bg-(--surface-alt) p-1 text-xs"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      isAdmin && onEditEvent?.(event.id);
-                    }}
-                  >
-                    <span className="font-semibold">{formatEventTitle(event)}</span>
-                    {event.headcount > 0 && <span> ({event.headcount})</span>}
-                    {event.housing && (
-                      <span className="ml-1 text-(--text-secondary)">{event.housing}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+        {!dbEventsDisabled && (
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
+              <span>✏️</span>
+              <span>Dashboard Events</span>
             </div>
-          ) : (
-            <div className="text-[10px] text-(--text-muted) italic">No groups</div>
-          )}
-          {isAdmin && (
-            <button
-              data-add-button
-              className="mt-1 w-full rounded border border-dashed border-(--border-light) py-0.5 text-[10px] text-(--text-muted) hover:border-(--text-secondary) hover:text-(--text)"
-              onClick={(e) => {
-                e.stopPropagation();
-                onAddEvent?.(month.id);
-              }}
-            >
-              + Add Group
-            </button>
-          )}
-        </div>
+            {dashboardEvents.length > 0 ? (
+              <div className="space-y-0.5">
+                {dashboardEvents.map(event => (
+                  <div key={event.id} data-event-card>
+                    <div
+                      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? 'cursor-pointer' : ''} ${getStatusColor(event.status)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        isAdmin && onEditEvent?.(event.id);
+                      }}
+                    >
+                      <span className="font-semibold">{formatEventTitle(event)}</span>
+                      {event.headcount > 0 && <span> ({event.headcount})</span>}
+                      {event.housing && (
+                        <span className="ml-1 text-(--text-secondary)">{event.housing}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[10px] text-(--text-muted) italic">No groups</div>
+            )}
+          </div>
+        )}
 
         {/* Section 2: Apple Events */}
-        <div className="space-y-0.5">
-          <div className="flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
-            <span>🍎</span>
-            <span>Apple Events</span>
-          </div>
-          {icsEvents.length > 0 ? (
-            <div className="space-y-0.5">
-              {icsEvents.map(event => (
-                <div key={event.id} data-event-card>
-                  <div
-                    className="cursor-pointer rounded border bg-(--surface-alt) p-1 text-xs opacity-90"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      isAdmin && onEditEvent?.(event.id);
-                    }}
-                  >
-                    <span className="font-semibold">{formatEventTitle(event)}</span>
-                    {event.headcount > 0 && <span> ({event.headcount})</span>}
-                    {event.housing && (
-                      <span className="ml-1 text-(--text-secondary)">{event.housing}</span>
-                    )}
-                  </div>
-                </div>
-              ))}
+        {icsEnabled && (
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
+              <span>🍎</span>
+              <span>Apple Events</span>
             </div>
-          ) : (
-            <div className="text-[10px] text-(--text-muted) italic">No apple events</div>
-          )}
-        </div>
+            {icsEvents.length > 0 ? (
+              <div className="space-y-0.5">
+                {icsEvents.map(event => (
+                  <div key={event.id} data-event-card>
+                    <div
+                      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? 'cursor-pointer' : ''} ${getStatusColor(event.status)}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        isAdmin && onEditEvent?.(event.id);
+                      }}
+                    >
+                      <span className="font-semibold">{formatEventTitle(event)}</span>
+                      {event.headcount > 0 && <span> ({event.headcount})</span>}
+                      {event.housing && (
+                        <span className="ml-1 text-(--text-secondary)">{event.housing}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[10px] text-(--text-muted) italic">No apple events</div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Section 3: Special Events */}

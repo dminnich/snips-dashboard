@@ -39,7 +39,7 @@ async function syncNow(db) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     const icsText = await response.text();
-    const calData = ical.parse(icsText);
+    const calData = ical.parseICS(icsText);
     const events = Object.values(calData).filter(e => e.type === 'VEVENT');
     
     console.log(`[${syncStart}] ICS sync: fetched ${events.length} events from ICS`);

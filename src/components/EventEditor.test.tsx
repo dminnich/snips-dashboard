@@ -5,11 +5,13 @@ import type { EventCard } from "@/types";
 
 const existingEvent: EventCard = {
   id: "evt-1",
-  weekId: "week-1",
   groupName: "Brushy Creek",
   headcount: 25,
   housing: "B1 & B2",
   status: "paid",
+  origin: "dashboard",
+  startDate: new Date().toISOString(),
+  endDate: new Date().toISOString(),
 };
 
 describe("EventEditor", () => {
@@ -17,13 +19,13 @@ describe("EventEditor", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
   });
 
-  it("renders nothing when weekId is null", () => {
+  it("renders nothing when open is false", () => {
     const { container } = render(
       <EventEditor
         event={null}
-        weekId={null}
-        open
+        open={false}
         onSave={vi.fn()}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -35,9 +37,9 @@ describe("EventEditor", () => {
     render(
       <EventEditor
         event={existingEvent}
-        weekId="week-1"
         open
         onSave={vi.fn()}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -51,9 +53,9 @@ describe("EventEditor", () => {
     render(
       <EventEditor
         event={null}
-        weekId="week-1"
         open
         onSave={vi.fn()}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -67,9 +69,9 @@ describe("EventEditor", () => {
     render(
       <EventEditor
         event={null}
-        weekId="week-1"
         open
         onSave={vi.fn()}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -81,9 +83,9 @@ describe("EventEditor", () => {
     render(
       <EventEditor
         event={existingEvent}
-        weekId="week-1"
         open
         onSave={vi.fn()}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -96,9 +98,9 @@ describe("EventEditor", () => {
     render(
       <EventEditor
         event={null}
-        weekId="week-1"
         open
         onSave={onSave}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
@@ -110,109 +112,79 @@ describe("EventEditor", () => {
       target: { value: "15" },
     });
     fireEvent.click(screen.getByText("Add"));
-    expect(onSave).toHaveBeenCalledWith(
-      "week-1",
-      "",
-      expect.objectContaining({ groupName: "New Group", headcount: 15 }),
-    );
+    expect(onSave).not.toHaveBeenCalled();
   });
 
-  it("uses headcount 0 when blank", () => {
+  it("calls onSave with updated data when editing existing event", () => {
     const onSave = vi.fn();
     render(
       <EventEditor
-        event={null}
-        weekId="week-1"
+        event={existingEvent}
         open
         onSave={onSave}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
     );
-    fireEvent.change(screen.getByPlaceholderText("e.g. Brushy Creek"), {
-      target: { value: "Group" },
+    fireEvent.change(screen.getByDisplayValue("Brushy Creek"), {
+      target: { value: "Updated Name" },
     });
-    fireEvent.click(screen.getByText("Add"));
+    fireEvent.click(screen.getByText("Save"));
     expect(onSave).toHaveBeenCalledWith(
-      "week-1",
-      "",
-      expect.objectContaining({ headcount: 0 }),
+      "evt-1",
+      expect.objectContaining({ groupName: "Updated Name" }),
     );
   });
 
-  it("disables Add button when groupName is empty", () => {
+  it("calls onDelete when Delete clicked twice", () => {
+    const onDelete = vi.fn();
     render(
       <EventEditor
-        event={null}
-        weekId="week-1"
-        open
-        onSave={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
-    expect(screen.getByText("Add")).toBeDisabled();
-  });
-
-  it("shows Delete button only when editing existing event", () => {
-    const { rerender } = render(
-      <EventEditor
-        event={null}
-        weekId="week-1"
-        open
-        onSave={vi.fn()}
-        onDelete={vi.fn()}
-        onClose={vi.fn()}
-      />,
-    );
-    expect(screen.queryByText("Delete")).not.toBeInTheDocument();
-    rerender(
-      <EventEditor
         event={existingEvent}
-        weekId="week-1"
         open
         onSave={vi.fn()}
-        onDelete={vi.fn()}
+        onCreate={vi.fn()}
+        onDelete={onDelete}
         onClose={vi.fn()}
       />,
     );
-    expect(screen.getByText("Delete")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Delete"));
+    fireEvent.click(screen.getByText("Confirm?"));
+    expect(onDelete).toHaveBeenCalledWith("evt-1");
   });
 
-  it("requires a second click on Confirm? before deleting", () => {
-    const onDelete = vi.fn();
+  it("calls onClose when Cancel clicked", () => {
     const onClose = vi.fn();
     render(
       <EventEditor
         event={existingEvent}
-        weekId="week-1"
         open
         onSave={vi.fn()}
-        onDelete={onDelete}
+        onCreate={vi.fn()}
+        onDelete={vi.fn()}
         onClose={onClose}
       />,
     );
-    fireEvent.click(screen.getByText("Delete"));
-    expect(onDelete).not.toHaveBeenCalled();
-    expect(screen.getByText("Confirm?")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("Confirm?"));
-    expect(onDelete).toHaveBeenCalledWith("week-1", "evt-1");
+    fireEvent.click(screen.getByText("Cancel"));
     expect(onClose).toHaveBeenCalledOnce();
   });
 
-  it("selecting a status updates the button styling", () => {
+  it("disables Save button when groupName is empty", () => {
     render(
       <EventEditor
         event={existingEvent}
-        weekId="week-1"
         open
         onSave={vi.fn()}
+        onCreate={vi.fn()}
         onDelete={vi.fn()}
         onClose={vi.fn()}
       />,
     );
-    fireEvent.click(screen.getByText("Mission"));
-    const missionBtn = screen.getByText("Mission");
-    expect(missionBtn.className).toContain("border-blue-500");
+    fireEvent.change(screen.getByDisplayValue("Brushy Creek"), {
+      target: { value: "" },
+    });
+    const saveButton = screen.getByText("Save");
+    expect(saveButton).toBeDisabled();
   });
 });

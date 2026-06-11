@@ -62,20 +62,44 @@ export function useLocalData() {
     lastSync: null,
     nextSync: null,
     status: 'idle',
+    icsEnabled: false,
+    dbEventsDisabled: false,
   });
 
   useEffect(() => {
-    apiGet("/api/data")
-      .then((data) => {
-        if (data.months?.length) setMonths(data.months);
-        if (data.weeks?.length) setWeeks(data.weeks);
-      })
-      .catch((err) => {
-        console.warn(
-          "useLocalData: initial /api/data fetch failed; using defaults",
-          err,
-        );
-      });
+    let pollingInterval: ReturnType<typeof setInterval> | null = null;
+
+    const fetchData = (isPoll = false) => {
+      apiGet("/api/data")
+        .then((data) => {
+          if (data.months?.length) setMonths(data.months);
+          if (data.weeks?.length) setWeeks(data.weeks);
+          if (data.icsEnabled !== undefined) {
+            setSyncStatus(prev => ({ ...prev, icsEnabled: data.icsEnabled }));
+          }
+          if (data.dbEventsDisabled !== undefined) {
+            setSyncStatus(prev => ({ ...prev, dbEventsDisabled: data.dbEventsDisabled }));
+          }
+          // Start polling after initial fetch if ICS is enabled
+          if (!pollingInterval && data.icsEnabled && !isPoll) {
+            pollingInterval = setInterval(() => fetchData(true), 120000); // Poll every 2 minutes
+          }
+        })
+        .catch((err) => {
+          console.warn(
+            "useLocalData: initial /api/data fetch failed; using defaults",
+            err,
+          );
+        });
+    };
+
+    fetchData();
+
+    return () => {
+      if (pollingInterval) {
+        clearInterval(pollingInterval);
+      }
+    };
   }, []);
 
   const updateMonth = useCallback((id: string, patch: Partial<MonthData>) => {
@@ -150,14 +174,10 @@ export function useLocalData() {
 
   const deleteEvent = useCallback((eventId: string) => {
     setMonths((prev) =>
-      prev.map((w) =>
-        ({ ...w, events: w.events.filter((e) => e.id !== eventId) },
-      ))
+      prev.map((w) => ({ ...w, events: w.events.filter((e) => e.id !== eventId) }))
     );
     setWeeks((prev) =>
-      prev.map((w) =>
-        ({ ...w, events: w.events.filter((e) => e.id !== eventId) },
-      ))
+      prev.map((w) => ({ ...w, events: w.events.filter((e) => e.id !== eventId) }))
     );
     apiFetch(`/api/events/${eventId}`, "DELETE").catch((err) =>
       logFailure(`deleteEvent ${eventId}`, err),
@@ -170,15 +190,26 @@ export function useLocalData() {
       const res = await fetch('/api/sync/ics', { method: 'POST' });
       if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
       const result = await res.json();
-      setSyncStatus({
-        lastSync: new Date().toISOString(),
-        nextSync: null,
-        status: result.status === 'error' ? 'error' : 'success',
-      });
-      // Refresh data after sync
+      // Refresh data after sync to get new events
       const data = await apiGet('/api/data');
       if (data.months?.length) setMonths(data.months);
       if (data.weeks?.length) setWeeks(data.weeks);
+      if (data.icsEnabled !== undefined) {
+        setSyncStatus(prev => ({ ...prev, icsEnabled: data.icsEnabled }));
+      }
+      if (data.dbEventsDisabled !== undefined) {
+        setSyncStatus(prev => ({ ...prev, dbEventsDisabled: data.dbEventsDisabled }));
+      }
+      setSyncStatus(prev => ({
+        ...prev,
+        lastSync: new Date().toISOString(),
+        nextSync: null,
+        status: result.status === 'error' ? 'error' : 'success',
+      }));
+      // Clear success/error status after 3 seconds
+      setTimeout(() => {
+        setSyncStatus(prev => ({ ...prev, status: 'idle' }));
+      }, 3000);
       return result;
     } catch (err) {
       setSyncStatus(prev => ({ ...prev, status: 'error' }));
@@ -200,6 +231,22 @@ export function useLocalData() {
     } catch (err) {
       logFailure('resetData', err);
       throw err;
+    }
+  }, []);
+
+  const refreshData = useCallback(async () => {
+    try {
+      const data = await apiGet('/api/data');
+      if (data.months?.length) setMonths(data.months);
+      if (data.weeks?.length) setWeeks(data.weeks);
+      if (data.icsEnabled !== undefined) {
+        setSyncStatus(prev => ({ ...prev, icsEnabled: data.icsEnabled }));
+      }
+      if (data.dbEventsDisabled !== undefined) {
+        setSyncStatus(prev => ({ ...prev, dbEventsDisabled: data.dbEventsDisabled }));
+      }
+    } catch (err) {
+      logFailure('refreshData', err);
     }
   }, []);
 
@@ -238,5 +285,6 @@ export function useLocalData() {
     syncStatus,
     triggerSync,
     resetData,
+    refreshData,
   };
 }

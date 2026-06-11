@@ -13,8 +13,8 @@ export function EventCard({ event, isAdmin, onEdit }: EventCardProps) {
   // Format event title with date prefix: "$startDay - $endDay $groupName"
   const displayTitle = (() => {
     if (event.startDate && event.endDate) {
-      const startDay = new Date(event.startDate).getDate();
-      const endDay = new Date(event.endDate).getDate();
+      const startDay = new Date(event.startDate).toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
+      const endDay = new Date(event.endDate).toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
       return `${startDay} - ${endDay} ${event.groupName}`;
     }
     return event.groupName;
@@ -22,7 +22,7 @@ export function EventCard({ event, isAdmin, onEdit }: EventCardProps) {
 
   return (
     <div
-      className={`cursor-pointer rounded border bg-(--surface-alt) p-1 text-xs ${getStatusColor(event.status)} ${isIcs ? 'opacity-90' : ''}`}
+      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? 'cursor-pointer' : ''} ${getStatusColor(event.status)}`}
       onClick={() => isAdmin && onEdit?.(event.id)}
       title={isAdmin ? (isIcs ? 'Click to change status' : 'Click to edit') : undefined}
       data-event-card

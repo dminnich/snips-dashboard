@@ -47,6 +47,7 @@ WORKDIR /app
 COPY --from=deps --chown=appuser:appuser /app/node_modules ./node_modules
 COPY --from=build --chown=appuser:appuser /app/dist ./dist
 COPY --from=build --chown=appuser:appuser /app/server.cjs ./server.cjs
+COPY --chown=appuser:appuser sync ./sync
 
 USER 999
 

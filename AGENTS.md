@@ -207,6 +207,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 - **Rate limiting**: 100 req/min general, 30 req/min write operations
 - **Health endpoint**: `GET /health` returns database connectivity status
 - **ICS Calendar Sync**: Automatic sync from ICS URL at configurable interval (env: `ICS_URL`, `ICS_SYNC_MINUTES`)
+- **Disable Dashboard Events**: Hide dashboard events sections (env: `DISABLE_DB_EVENTS`)
 - **Event placement**: Date-based placement in all overlapping months/weeks via junction tables
 - **Validation**:
   - `groupName`: required, max 200 chars
@@ -231,6 +232,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
   - `AUTH_PASSWORD`: Auth password (default: `changeme`)
   - `ICS_URL`: URL to ICS calendar feed (optional, enables auto-sync)
   - `ICS_SYNC_MINUTES`: Sync interval in minutes (default: 60)
+  - `DISABLE_DB_EVENTS`: Hide Dashboard Events sections and Add Group button (default: `false`)
 - See [Container-Only Workflow](#container-only-workflow-docker--podman) above for the full host-side setup
 
 ### API Endpoints

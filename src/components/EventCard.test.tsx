@@ -5,11 +5,11 @@ import type { EventCard as EventCardType } from "@/types";
 
 const baseEvent: EventCardType = {
   id: "evt-1",
-  weekId: "week-1",
   groupName: "Test Church",
   headcount: 30,
   housing: "B1 & B2",
   status: "paid",
+  origin: "dashboard",
 };
 
 describe("EventCard", () => {
