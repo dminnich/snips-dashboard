@@ -22,3 +22,4 @@ coverage
 .pnp.*
 *.md
 !README.md
+.claude

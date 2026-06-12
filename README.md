@@ -106,7 +106,7 @@ Set `.env` variables according to your needs.
 |----------|---------|-------------|
 | `ICS_URL` | (none) | URL to ICS calendar feed (e.g., from Apple). Leave unset to disable the feature.|
 | `ICS_SYNC_MINUTES` | `60` | How often to sync (in minutes) |
-| `DISABLE_DB_EVENTS` | `false` | True turns of local data editing to use ICS only. |
+| `DISABLE_DB_EVENTS` | `false` | True turns off local data editing to use ICS only. |
 | `AUTH_ENABLED` | `false` | Set to `true` to require authentication |
 | `AUTH_USERNAME` | `admin` | Username for login |
 | `AUTH_PASSWORD` | `changeme` | Password for login |
@@ -116,14 +116,14 @@ Calendar sync is one direction. ICS_URL => Dashboard.
 ### Adding events
 **Local**: Click "Add Group". Fill in the information. Click "Add"
 
-**Sync**: Create in your calendar tool. Use this title standard for consistency: group-name (headcount) housing
+**Sync**: Create in your calendar tool. Use this title standard for consistency: `group-name (headcount) housing`
 
 ### Editing events
 **Local**: Click "Edit". Click on the event. Make changes. Click "Save"
 
 **Sync**:
 
-For everything but status, change it your calendar tool. It will sync automatically. Or you can force it by clicking "Sync Now".
+For everything but status, change it in your calendar tool. It will sync automatically. Or you can force it by clicking "Sync Now".
 
 For status, click "Edit". Click on the event. Make changes. Click "Save"
 
@@ -153,6 +153,7 @@ Click "Import JSON"
 4. Add events via "Add Group" or "Sync Now"
 
 
+
 ## Docker
 
 ### Container Commands
@@ -177,6 +178,7 @@ The image has three targets:
 
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/health` | Health check (database connectivity) |
 | GET | `/api/data` | Fetch all months, weeks, events |
 | PUT | `/api/data` | Import full data (replace all) |
 | PATCH | `/api/months/:id` | Update month (subtitle, specialEvents, startDate, endDate) |

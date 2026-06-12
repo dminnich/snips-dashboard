@@ -1,9 +1,16 @@
 import { useState, useCallback, useEffect } from "react";
 import type { MonthData, WeekData, EventCard, SyncStatus } from "@/types";
+import { SUMMER_WEEKS } from "@/utils/dates";
 
 function createDefaultMonths(): MonthData[] {
   const MONTHS_LEFT = ["January", "February", "March", "April", "May"];
-  const MONTHS_RIGHT = ["August", "September", "October", "November", "December"];
+  const MONTHS_RIGHT = [
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+  ];
   return [...MONTHS_LEFT, ...MONTHS_RIGHT].map((name) => ({
     id: name.toLowerCase(),
     name,
@@ -16,10 +23,6 @@ function createDefaultMonths(): MonthData[] {
 }
 
 function createDefaultWeeks(): WeekData[] {
-  const SUMMER_WEEKS = [
-    { number: 1 }, { number: 2 }, { number: 3 }, { number: 4 }, { number: 5 },
-    { number: 6 }, { number: 7 }, { number: 8 }, { number: 9 }, { number: 10 },
-  ];
   return SUMMER_WEEKS.map((w) => ({
     id: `week-${w.number}`,
     weekNumber: w.number,
@@ -59,9 +62,7 @@ export function useLocalData() {
   const [months, setMonths] = useState<MonthData[]>(createDefaultMonths);
   const [weeks, setWeeks] = useState<WeekData[]>(createDefaultWeeks);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
-    lastSync: null,
-    nextSync: null,
-    status: 'idle',
+    status: "idle",
     icsEnabled: false,
     dbEventsDisabled: false,
   });
@@ -75,10 +76,13 @@ export function useLocalData() {
           if (data.months?.length) setMonths(data.months);
           if (data.weeks?.length) setWeeks(data.weeks);
           if (data.icsEnabled !== undefined) {
-            setSyncStatus(prev => ({ ...prev, icsEnabled: data.icsEnabled }));
+            setSyncStatus((prev) => ({ ...prev, icsEnabled: data.icsEnabled }));
           }
           if (data.dbEventsDisabled !== undefined) {
-            setSyncStatus(prev => ({ ...prev, dbEventsDisabled: data.dbEventsDisabled }));
+            setSyncStatus((prev) => ({
+              ...prev,
+              dbEventsDisabled: data.dbEventsDisabled,
+            }));
           }
           // Start polling after initial fetch if ICS is enabled
           if (!pollingInterval && data.icsEnabled && !isPoll) {
@@ -119,16 +123,14 @@ export function useLocalData() {
   }, []);
 
   const addEvent = useCallback(
-    async (
-      data: {
-        groupName: string;
-        headcount: number;
-        housing: string;
-        status: EventCard["status"];
-        startDate: string;
-        endDate: string;
-      },
-    ) => {
+    async (data: {
+      groupName: string;
+      headcount: number;
+      housing: string;
+      status: EventCard["status"];
+      startDate: string;
+      endDate: string;
+    }) => {
       try {
         const res = await fetch(`/api/events`, {
           method: "POST",
@@ -137,9 +139,9 @@ export function useLocalData() {
         });
         if (!res.ok) throw new Error(`POST failed: ${res.status}`);
         const { id } = (await res.json()) as { id: string };
-        return { ...data, id, origin: 'dashboard' as const };
+        return { ...data, id, origin: "dashboard" as const };
       } catch (err) {
-        logFailure('addEvent', err);
+        logFailure("addEvent", err);
         throw err;
       }
     },
@@ -155,7 +157,7 @@ export function useLocalData() {
           events: m.events.map((e) =>
             e.id === eventId ? { ...e, ...patch } : e,
           ),
-        }))
+        })),
       );
       setWeeks((prev) =>
         prev.map((w) => ({
@@ -163,10 +165,10 @@ export function useLocalData() {
           events: w.events.map((e) =>
             e.id === eventId ? { ...e, ...patch } : e,
           ),
-        }))
+        })),
       );
-      apiFetch(`/api/events/${eventId}`, "PATCH", patch).catch(
-        (err) => logFailure(`updateEvent ${eventId}`, err),
+      apiFetch(`/api/events/${eventId}`, "PATCH", patch).catch((err) =>
+        logFailure(`updateEvent ${eventId}`, err),
       );
     },
     [],
@@ -174,10 +176,16 @@ export function useLocalData() {
 
   const deleteEvent = useCallback((eventId: string) => {
     setMonths((prev) =>
-      prev.map((w) => ({ ...w, events: w.events.filter((e) => e.id !== eventId) }))
+      prev.map((w) => ({
+        ...w,
+        events: w.events.filter((e) => e.id !== eventId),
+      })),
     );
     setWeeks((prev) =>
-      prev.map((w) => ({ ...w, events: w.events.filter((e) => e.id !== eventId) }))
+      prev.map((w) => ({
+        ...w,
+        events: w.events.filter((e) => e.id !== eventId),
+      })),
     );
     apiFetch(`/api/events/${eventId}`, "DELETE").catch((err) =>
       logFailure(`deleteEvent ${eventId}`, err),
@@ -185,68 +193,72 @@ export function useLocalData() {
   }, []);
 
   const triggerSync = useCallback(async () => {
-    setSyncStatus(prev => ({ ...prev, status: 'syncing' }));
+    setSyncStatus((prev) => ({ ...prev, status: "syncing" }));
     try {
-      const res = await fetch('/api/sync/ics', { method: 'POST' });
+      const res = await fetch("/api/sync/ics", { method: "POST" });
       if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
       const result = await res.json();
       // Refresh data after sync to get new events
-      const data = await apiGet('/api/data');
+      const data = await apiGet("/api/data");
       if (data.months?.length) setMonths(data.months);
       if (data.weeks?.length) setWeeks(data.weeks);
       if (data.icsEnabled !== undefined) {
-        setSyncStatus(prev => ({ ...prev, icsEnabled: data.icsEnabled }));
+        setSyncStatus((prev) => ({ ...prev, icsEnabled: data.icsEnabled }));
       }
       if (data.dbEventsDisabled !== undefined) {
-        setSyncStatus(prev => ({ ...prev, dbEventsDisabled: data.dbEventsDisabled }));
+        setSyncStatus((prev) => ({
+          ...prev,
+          dbEventsDisabled: data.dbEventsDisabled,
+        }));
       }
-      setSyncStatus(prev => ({
+      setSyncStatus((prev) => ({
         ...prev,
-        lastSync: new Date().toISOString(),
-        nextSync: null,
-        status: result.status === 'error' ? 'error' : 'success',
+        status: result.status === "error" ? "error" : "success",
       }));
       // Clear success/error status after 3 seconds
       setTimeout(() => {
-        setSyncStatus(prev => ({ ...prev, status: 'idle' }));
+        setSyncStatus((prev) => ({ ...prev, status: "idle" }));
       }, 3000);
       return result;
     } catch (err) {
-      setSyncStatus(prev => ({ ...prev, status: 'error' }));
-      logFailure('triggerSync', err);
+      setSyncStatus((prev) => ({ ...prev, status: "error" }));
+      logFailure("triggerSync", err);
       throw err;
     }
   }, []);
 
   const resetData = useCallback(async () => {
     try {
-      const res = await fetch('/api/reset', { method: 'POST' });
+      const res = await fetch("/api/reset", { method: "POST" });
       if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
       const result = await res.json();
       // Refresh data after reset
-      const data = await apiGet('/api/data');
+      const data = await apiGet("/api/data");
       if (data.months?.length) setMonths(data.months);
       if (data.weeks?.length) setWeeks(data.weeks);
       return result;
     } catch (err) {
-      logFailure('resetData', err);
+      logFailure("resetData", err);
       throw err;
     }
   }, []);
 
   const refreshData = useCallback(async () => {
     try {
-      const data = await apiGet('/api/data');
+      const data = await apiGet("/api/data");
       if (data.months?.length) setMonths(data.months);
       if (data.weeks?.length) setWeeks(data.weeks);
       if (data.icsEnabled !== undefined) {
-        setSyncStatus(prev => ({ ...prev, icsEnabled: data.icsEnabled }));
+        setSyncStatus((prev) => ({ ...prev, icsEnabled: data.icsEnabled }));
       }
       if (data.dbEventsDisabled !== undefined) {
-        setSyncStatus(prev => ({ ...prev, dbEventsDisabled: data.dbEventsDisabled }));
+        setSyncStatus((prev) => ({
+          ...prev,
+          dbEventsDisabled: data.dbEventsDisabled,
+        }));
       }
     } catch (err) {
-      logFailure('refreshData', err);
+      logFailure("refreshData", err);
     }
   }, []);
 
@@ -266,7 +278,7 @@ export function useLocalData() {
       const error = new Error(`Invalid JSON data: ${(err as Error).message}`, {
         cause: err,
       });
-      logFailure('importData', error);
+      logFailure("importData", error);
       throw error;
     }
   }, []);

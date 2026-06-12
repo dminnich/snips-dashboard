@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { EventCard, EventStatus } from "@/types";
 import { Modal } from "./Modal";
 
@@ -12,7 +12,14 @@ interface EventEditorProps {
   event: EventCard | null;
   open: boolean;
   onSave: (eventId: string, patch: Partial<EventCard>) => void;
-  onCreate?: (data: { groupName: string; headcount: number; housing: string; status: EventStatus; startDate: string; endDate: string }) => void;
+  onCreate?: (data: {
+    groupName: string;
+    headcount: number;
+    housing: string;
+    status: EventStatus;
+    startDate: string;
+    endDate: string;
+  }) => void;
   onDelete: (eventId: string) => void;
   onClose: () => void;
 }
@@ -26,62 +33,48 @@ export function EventEditor({
   onClose,
 }: EventEditorProps) {
   const isNew = !event;
-  const isIcs = event?.origin === 'ics';
-  
+  const isIcs = event?.origin === "ics";
+
   // Default to current date at noon UTC for new events
   const getDefaultDate = () => {
     const now = new Date();
-    return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0)).toISOString();
+    return new Date(
+      Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0),
+    ).toISOString();
   };
-  
+
   const [groupName, setGroupName] = useState(event?.groupName ?? "");
   const [headcount, setHeadcount] = useState(
     event ? String(event.headcount) : "",
   );
   const [housing, setHousing] = useState(event?.housing ?? "");
   const [status, setStatus] = useState<EventStatus>(event?.status ?? "pending");
-  const [startDate, setStartDate] = useState(event?.startDate ?? (isNew ? getDefaultDate() : ""));
-  const [endDate, setEndDate] = useState(event?.endDate ?? (isNew ? getDefaultDate() : ""));
+  const [startDate, setStartDate] = useState(
+    event?.startDate ?? (isNew ? getDefaultDate() : ""),
+  );
+  const [endDate, setEndDate] = useState(
+    event?.endDate ?? (isNew ? getDefaultDate() : ""),
+  );
   const [confirmingDelete, setConfirmingDelete] = useState(false);
-
-  // Reset form when event changes (for editing existing events)
-  useEffect(() => {
-    if (event) {
-      setGroupName(event.groupName);
-      setHeadcount(event ? String(event.headcount) : "");
-      setHousing(event.housing ?? "");
-      setStatus(event.status ?? "pending");
-      setStartDate(event.startDate ?? "");
-      setEndDate(event.endDate ?? "");
-    } else if (isNew) {
-      // For new events, reset to defaults
-      setGroupName("");
-      setHeadcount("");
-      setHousing("");
-      setStatus("pending");
-      setStartDate(getDefaultDate());
-      setEndDate(getDefaultDate());
-    }
-  }, [event]);
 
   const eventId = event?.id ?? "";
 
   const handleSave = async () => {
     const hc = headcount === "" ? 0 : Number(headcount);
     if (isNew) {
-      await onCreate?.({ 
-        groupName, 
-        headcount: hc, 
-        housing, 
+      await onCreate?.({
+        groupName,
+        headcount: hc,
+        housing,
         status,
         startDate,
         endDate,
       });
     } else {
-      const patch: Partial<EventCard> = { 
-        groupName, 
-        headcount: hc, 
-        housing, 
+      const patch: Partial<EventCard> = {
+        groupName,
+        headcount: hc,
+        housing,
         status,
         startDate,
         endDate,
@@ -102,22 +95,31 @@ export function EventEditor({
   };
 
   const formatDateForInput = (isoString: string) => {
-    if (!isoString) return '';
+    if (!isoString) return "";
     const date = new Date(isoString);
-    const year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'America/New_York' });
-    const month = String(date.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
-    const day = String(date.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    const year = date.toLocaleString("en-US", {
+      year: "numeric",
+      timeZone: "America/New_York",
+    });
+    const month = String(
+      date.toLocaleString("en-US", {
+        month: "numeric",
+        timeZone: "America/New_York",
+      }),
+    ).padStart(2, "0");
+    const day = String(
+      date.toLocaleString("en-US", {
+        day: "numeric",
+        timeZone: "America/New_York",
+      }),
+    ).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
   // For ICS events, show read-only modal with status selector
   if (isIcs && !isNew) {
     return (
-      <Modal
-        open={open}
-        onClose={onClose}
-        title="Event Details"
-      >
+      <Modal open={open} onClose={onClose} title="Event Details">
         <div className="flex flex-col gap-4">
           <div>
             <label
@@ -134,7 +136,7 @@ export function EventEditor({
               readOnly
             />
           </div>
-          
+
           <div className="flex gap-4">
             <div className="flex-1">
               <label
@@ -169,7 +171,7 @@ export function EventEditor({
               />
             </div>
           </div>
-          
+
           <div className="flex gap-4">
             <div className="flex-1">
               <label
@@ -183,7 +185,7 @@ export function EventEditor({
                 type="text"
                 inputMode="numeric"
                 className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                value={headcount || '0'}
+                value={headcount || "0"}
                 disabled
                 readOnly
               />
@@ -199,13 +201,13 @@ export function EventEditor({
                 id="ics-housing"
                 type="text"
                 className="w-full rounded border border-(--input-border) bg-(--input-bg) px-3 py-2 text-sm text-(--text-muted) cursor-not-allowed opacity-70"
-                value={housing || '-'}
+                value={housing || "-"}
                 disabled
                 readOnly
               />
             </div>
           </div>
-          
+
           <div>
             <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
               Status
@@ -226,7 +228,7 @@ export function EventEditor({
               ))}
             </div>
           </div>
-          
+
           <div className="flex justify-between gap-2">
             <div>
               <button
@@ -282,7 +284,7 @@ export function EventEditor({
             autoFocus
           />
         </div>
-        
+
         <div className="flex gap-4">
           <div className="flex-1">
             <label
@@ -298,12 +300,16 @@ export function EventEditor({
               value={formatDateForInput(startDate)}
               onChange={(e) => {
                 if (!e.target.value) {
-                  setStartDate('');
+                  setStartDate("");
                   return;
                 }
                 // User picks date, store as UTC noon
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                const [year, month, day] = e.target.value
+                  .split("-")
+                  .map(Number);
+                const utcNoon = new Date(
+                  Date.UTC(year, month - 1, day, 12, 0, 0),
+                );
                 setStartDate(utcNoon.toISOString());
               }}
             />
@@ -322,18 +328,22 @@ export function EventEditor({
               value={formatDateForInput(endDate)}
               onChange={(e) => {
                 if (!e.target.value) {
-                  setEndDate('');
+                  setEndDate("");
                   return;
                 }
                 // User picks date, store as UTC noon
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                const [year, month, day] = e.target.value
+                  .split("-")
+                  .map(Number);
+                const utcNoon = new Date(
+                  Date.UTC(year, month - 1, day, 12, 0, 0),
+                );
                 setEndDate(utcNoon.toISOString());
               }}
             />
           </div>
         </div>
-        
+
         <div className="flex gap-4">
           <div className="flex-1">
             <label
@@ -368,7 +378,7 @@ export function EventEditor({
             />
           </div>
         </div>
-        
+
         <div>
           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
             Status

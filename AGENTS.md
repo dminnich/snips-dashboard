@@ -186,7 +186,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 
 ### Testing
 - All tests run inside the `test` Docker/Podman profile: `docker compose --profile test run --rm test`
-- **117 tests** across **16 test files** — components, hooks, utilities, API integration, ICS sync
+- Tests across **16 test files** — components, hooks, utilities, API integration, ICS sync
 - `describe` / `it` / `expect` (Vitest)
 - `render` from `@testing-library/react`
 - Auto-cleanup via `afterEach(cleanup)` in setup file
@@ -222,7 +222,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 - `runtime` runs as non-root user (uid 999) for rootless Podman compatibility
 - `test` target runs `npm test` and exits
 - `dev` target runs Vite dev server + API server via `concurrently`; source bind-mounted for hot-reload
-- Healthcheck hits `/api/data`
+- Healthcheck hits `/health` (checks database connectivity)
 - Bind mount `./data:/data:z` persists the SQLite database across container rebuilds (`:z` is required for SELinux-enforcing hosts)
 - **Environment variables**:
   - `PORT`: Server port (default: 3000)
@@ -238,6 +238,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 ### API Endpoints
 | Method | Path | Purpose |
 |--------|------|---------|
+| GET | `/health` | Health check (database connectivity) |
 | GET | `/api/data` | Fetch all months, weeks, events |
 | PUT | `/api/data` | Import full data (replace all) |
 | PATCH | `/api/months/:id` | Update month (subtitle, specialEvents, startDate, endDate) |
@@ -282,7 +283,6 @@ AUTH_PASSWORD=admin
 - All user input is sanitized server-side before database storage
 - Input length limits enforced:
   - `groupName`: max 200 chars
-  - `content`: max 1 MB
   - `subtitle`: max 500 chars
   - `specialEvents`: max 1 MB
   - `housing`: max 200 chars

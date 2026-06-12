@@ -37,14 +37,14 @@ export function Dashboard() {
   // Year rollover detection
   useEffect(() => {
     if (!isAdmin || months.length === 0) return;
-    
+
     const currentYear = new Date().getFullYear();
     const firstMonth = months[0];
     if (firstMonth.startDate) {
       const storedYear = new Date(firstMonth.startDate).getFullYear();
       if (currentYear > storedYear) {
         const shouldReset = window.confirm(
-          `New year detected (${currentYear}). Would you like to reset the database and set dates for ${currentYear}?`
+          `New year detected (${currentYear}). Would you like to reset the database and set dates for ${currentYear}?`,
         );
         if (shouldReset) {
           resetData();
@@ -52,6 +52,16 @@ export function Dashboard() {
       }
     }
   }, [isAdmin, months, resetData]);
+
+  function handleSaveMonth(id: string, patch: Partial<MonthData>) {
+    updateMonth(id, patch);
+    refreshData();
+  }
+
+  function handleSaveWeek(id: string, patch: Partial<WeekData>) {
+    updateWeek(id, patch);
+    refreshData();
+  }
 
   function handleEditMonth(id: string) {
     const m = months.find((m) => m.id === id);
@@ -85,24 +95,19 @@ export function Dashboard() {
     setIsAddingEvent(true);
   }
 
-  async function handleCreateEvent(
-    data: {
-      groupName: string;
-      headcount: number;
-      housing: string;
-      status: EventCard["status"];
-      startDate: string;
-      endDate: string;
-    },
-  ) {
+  async function handleCreateEvent(data: {
+    groupName: string;
+    headcount: number;
+    housing: string;
+    status: EventCard["status"];
+    startDate: string;
+    endDate: string;
+  }) {
     await addEvent(data);
     refreshData();
   }
 
-  function handleSaveEvent(
-    eventId: string,
-    patch: Partial<EventCard>,
-  ) {
+  function handleSaveEvent(eventId: string, patch: Partial<EventCard>) {
     updateEvent(eventId, patch);
     refreshData();
   }
@@ -200,7 +205,11 @@ export function Dashboard() {
         syncStatus={syncStatus}
         onSyncNow={() => triggerSync()}
         onReset={() => {
-          if (window.confirm('Are you sure? This will delete all events, clear subtitles and special events, and reset dates to current year defaults.')) {
+          if (
+            window.confirm(
+              "Are you sure? This will delete all events, clear subtitles and special events, and reset dates to current year defaults.",
+            )
+          ) {
             resetData();
           }
         }}
@@ -227,24 +236,27 @@ export function Dashboard() {
             key={editMonth?.id ?? "month-none"}
             month={editMonth}
             open={editMonth !== null}
-            onSave={updateMonth}
+            onSave={handleSaveMonth}
             onClose={() => setEditMonth(null)}
           />
           <WeekEditor
             key={editWeek?.id ?? "week-none"}
             week={editWeek}
             open={editWeek !== null}
-            onSave={updateWeek}
+            onSave={handleSaveWeek}
             onClose={() => setEditWeek(null)}
           />
           <EventEditor
-            key={editEvent?.id ?? (isAddingEvent ? 'add' : 'closed')}
+            key={editEvent?.id ?? (isAddingEvent ? "add" : "closed")}
             event={editEvent}
             open={editEvent !== null || isAddingEvent}
             onSave={handleSaveEvent}
             onCreate={handleCreateEvent}
             onDelete={handleDeleteEvent}
-            onClose={() => { setEditEvent(null); setIsAddingEvent(false); }}
+            onClose={() => {
+              setEditEvent(null);
+              setIsAddingEvent(false);
+            }}
           />
         </>
       )}

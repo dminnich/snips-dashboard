@@ -16,7 +16,12 @@ describe("API Integration", () => {
     });
 
     app.get("/api/data", (_req: Request, res: Response) => {
-      res.json({ months: [], weeks: [] });
+      res.json({
+        months: [],
+        weeks: [],
+        icsEnabled: false,
+        dbEventsDisabled: false,
+      });
     });
 
     app.put("/api/data", (_req: Request, res: Response) => {
@@ -31,16 +36,30 @@ describe("API Integration", () => {
       res.json({ ok: true });
     });
 
-    app.post("/api/weeks/:id/events", (_req: Request, res: Response) => {
+    app.post("/api/events", (_req: Request, res: Response) => {
       res.json({ id: "test-event-id" });
     });
 
-    app.patch("/api/weeks/:wid/events/:eid", (_req: Request, res: Response) => {
+    app.patch("/api/events/:id", (_req: Request, res: Response) => {
       res.json({ ok: true });
     });
 
-    app.delete("/api/weeks/:wid/events/:eid", (_req: Request, res: Response) => {
+    app.delete("/api/events/:id", (_req: Request, res: Response) => {
       res.json({ ok: true });
+    });
+
+    app.post("/api/sync/ics", (_req: Request, res: Response) => {
+      res.json({
+        status: "success",
+        added: 0,
+        updated: 0,
+        deleted: 0,
+        skipped: 0,
+      });
+    });
+
+    app.post("/api/reset", (_req: Request, res: Response) => {
+      res.json({ ok: true, year: new Date().getFullYear() });
     });
 
     app.use((_req: Request, res: Response) => {
@@ -73,14 +92,14 @@ describe("API Integration", () => {
   });
 
   describe("GET /api/data", () => {
-    it("returns months and weeks arrays", async () => {
+    it("returns months, weeks, icsEnabled, and dbEventsDisabled", async () => {
       const res = await fetch(`${baseUrl}/api/data`);
       expect(res.status).toBe(200);
       const data = await res.json();
-      expect(data).toHaveProperty("months");
-      expect(data).toHaveProperty("weeks");
       expect(Array.isArray(data.months)).toBe(true);
       expect(Array.isArray(data.weeks)).toBe(true);
+      expect(typeof data.icsEnabled).toBe("boolean");
+      expect(typeof data.dbEventsDisabled).toBe("boolean");
     });
   });
 
@@ -102,7 +121,7 @@ describe("API Integration", () => {
       const res = await fetch(`${baseUrl}/api/months/january`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: "test", subtitle: "Jan 1-31" }),
+        body: JSON.stringify({ subtitle: "Jan 1-31" }),
       });
       expect(res.status).toBe(200);
       const data = await res.json();
@@ -123,9 +142,9 @@ describe("API Integration", () => {
     });
   });
 
-  describe("POST /api/weeks/:id/events", () => {
+  describe("POST /api/events", () => {
     it("creates event and returns id", async () => {
-      const res = await fetch(`${baseUrl}/api/weeks/week-1/events`, {
+      const res = await fetch(`${baseUrl}/api/events`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -133,6 +152,8 @@ describe("API Integration", () => {
           headcount: 10,
           housing: "B1",
           status: "pending",
+          startDate: new Date().toISOString(),
+          endDate: new Date().toISOString(),
         }),
       });
       expect(res.status).toBe(200);
@@ -141,33 +162,46 @@ describe("API Integration", () => {
     });
   });
 
-  describe("PATCH /api/weeks/:wid/events/:eid", () => {
+  describe("PATCH /api/events/:id", () => {
     it("updates event and returns ok", async () => {
-      const res = await fetch(
-        `${baseUrl}/api/weeks/week-1/events/test-event`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ status: "paid" }),
-        },
-      );
+      const res = await fetch(`${baseUrl}/api/events/test-event-id`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "paid" }),
+      });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.ok).toBe(true);
     });
   });
 
-  describe("DELETE /api/weeks/:wid/events/:eid", () => {
+  describe("DELETE /api/events/:id", () => {
     it("deletes event and returns ok", async () => {
-      const res = await fetch(
-        `${baseUrl}/api/weeks/week-1/events/test-event`,
-        {
-          method: "DELETE",
-        },
-      );
+      const res = await fetch(`${baseUrl}/api/events/test-event-id`, {
+        method: "DELETE",
+      });
       expect(res.status).toBe(200);
       const data = await res.json();
       expect(data.ok).toBe(true);
+    });
+  });
+
+  describe("POST /api/sync/ics", () => {
+    it("returns sync result with status field", async () => {
+      const res = await fetch(`${baseUrl}/api/sync/ics`, { method: "POST" });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.status).toBeDefined();
+    });
+  });
+
+  describe("POST /api/reset", () => {
+    it("resets data and returns ok with year", async () => {
+      const res = await fetch(`${baseUrl}/api/reset`, { method: "POST" });
+      expect(res.status).toBe(200);
+      const data = await res.json();
+      expect(data.ok).toBe(true);
+      expect(typeof data.year).toBe("number");
     });
   });
 

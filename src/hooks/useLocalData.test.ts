@@ -63,7 +63,7 @@ describe("useLocalData", () => {
     expect(w1?.subtitle).toBe("Youth Week");
   });
 
-  it("addEvent creates event with provided data and returns it", async () => {
+  it("addEvent creates event and returns the data with an id", async () => {
     const { result } = renderHook(() => useLocalData());
     let event;
     await act(async () => {
@@ -78,51 +78,91 @@ describe("useLocalData", () => {
     });
     expect(event).toBeDefined();
     expect(event!.groupName).toBe("Test Group");
-    const w1 = result.current.weeks.find((w) => w.id === "week-1");
-    expect(w1?.events).toHaveLength(1);
-    expect(w1?.events[0].groupName).toBe("Test Group");
+    expect(event!.id).toBeDefined();
+    // Placement in months/weeks is server-side; local state only updates after refreshData()
   });
 
-  it("updateEvent updates an existing event", async () => {
+  it("updateEvent optimistically updates an event in local state", () => {
     const { result } = renderHook(() => useLocalData());
-    let event;
-    await act(async () => {
-      event = await result.current.addEvent({
-        groupName: "Old Name",
-        headcount: 10,
-        housing: "",
-        status: "pending",
-        startDate: new Date().toISOString(),
-        endDate: new Date().toISOString(),
-      });
-    });
+    const eventId = "update-test-id";
+
     act(() => {
-      result.current.updateEvent(event!.id, {
-        groupName: "New Name",
-      });
+      result.current.toolbar.importData(
+        JSON.stringify({
+          months: [],
+          weeks: [
+            {
+              id: "week-1",
+              weekNumber: 1,
+              startDate: "",
+              endDate: "",
+              subtitle: "",
+              specialEvents: "",
+              events: [
+                {
+                  id: eventId,
+                  groupName: "Old Name",
+                  headcount: 10,
+                  housing: "",
+                  status: "pending",
+                  origin: "dashboard",
+                },
+              ],
+            },
+          ],
+        }),
+      );
     });
+
+    act(() => {
+      result.current.updateEvent(eventId, { groupName: "New Name" });
+    });
+
     const w1 = result.current.weeks.find((w) => w.id === "week-1");
     expect(w1?.events[0].groupName).toBe("New Name");
   });
 
-  it("deleteEvent removes an event", async () => {
+  it("deleteEvent optimistically removes an event from local state", () => {
     const { result } = renderHook(() => useLocalData());
-    let event;
-    await act(async () => {
-      event = await result.current.addEvent({
-        groupName: "To Delete",
-        headcount: 5,
-        housing: "",
-        status: "pending",
-        startDate: new Date().toISOString(),
-        endDate: new Date().toISOString(),
-      });
-    });
+    const eventId = "delete-test-id";
+
     act(() => {
-      result.current.deleteEvent(event!.id);
+      result.current.toolbar.importData(
+        JSON.stringify({
+          months: [],
+          weeks: [
+            {
+              id: "week-1",
+              weekNumber: 1,
+              startDate: "",
+              endDate: "",
+              subtitle: "",
+              specialEvents: "",
+              events: [
+                {
+                  id: eventId,
+                  groupName: "To Delete",
+                  headcount: 5,
+                  housing: "",
+                  status: "pending",
+                  origin: "dashboard",
+                },
+              ],
+            },
+          ],
+        }),
+      );
     });
-    const w1 = result.current.weeks.find((w) => w.id === "week-1");
-    expect(w1?.events).toHaveLength(0);
+
+    const before = result.current.weeks.find((w) => w.id === "week-1");
+    expect(before?.events).toHaveLength(1);
+
+    act(() => {
+      result.current.deleteEvent(eventId);
+    });
+
+    const after = result.current.weeks.find((w) => w.id === "week-1");
+    expect(after?.events).toHaveLength(0);
   });
 
   it("exportData returns valid JSON with months and weeks", () => {
@@ -147,8 +187,7 @@ describe("useLocalData", () => {
         {
           id: "january",
           name: "January",
-          content: "imported",
-          subtitle: "",
+          subtitle: "imported",
           specialEvents: "",
         },
       ],
@@ -219,9 +258,7 @@ describe("useLocalData failure surfacing (S-2)", () => {
         event = undefined;
       }
     });
-    act(() =>
-      result.current.updateEvent("synthetic-id", { groupName: "z" }),
-    );
+    act(() => result.current.updateEvent("synthetic-id", { groupName: "z" }));
     await waitFor(() =>
       expect(
         errorSpy.mock.calls.some((c: unknown[]) =>

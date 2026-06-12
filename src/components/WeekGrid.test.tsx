@@ -35,9 +35,11 @@ describe("WeekGrid", () => {
     expect(emptyMessages).toHaveLength(10);
   });
 
-  it("shows Add Group buttons in admin mode", () => {
-    render(<WeekGrid weeks={defaultWeeks} isAdmin />);
-    const buttons = screen.getAllByText("+ Add Group");
-    expect(buttons).toHaveLength(10);
+  it("shows edit icons in week headers in admin mode", () => {
+    const { rerender } = render(<WeekGrid weeks={defaultWeeks} />);
+    const nonAdminCount = screen.getAllByText("✏️").length;
+    rerender(<WeekGrid weeks={defaultWeeks} isAdmin />);
+    // Admin mode adds ✏️ to each of the 10 week headers
+    expect(screen.getAllByText("✏️").length).toBe(nonAdminCount + 10);
   });
 });

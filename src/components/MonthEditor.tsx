@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { MonthData } from "@/types";
 import { Modal } from "./Modal";
 import { WysiwygEditor } from "./WysiwygEditor";
@@ -17,18 +17,11 @@ export function MonthEditor({
   onClose,
 }: MonthEditorProps) {
   const [subtitle, setSubtitle] = useState(month?.subtitle ?? "");
-  const [specialEvents, setSpecialEvents] = useState(month?.specialEvents ?? "");
+  const [specialEvents, setSpecialEvents] = useState(
+    month?.specialEvents ?? "",
+  );
   const [startDate, setStartDate] = useState(month?.startDate ?? "");
   const [endDate, setEndDate] = useState(month?.endDate ?? "");
-
-  useEffect(() => {
-    if (month) {
-      setSubtitle(month.subtitle);
-      setSpecialEvents(month.specialEvents);
-      setStartDate(month.startDate);
-      setEndDate(month.endDate);
-    }
-  }, [month]);
 
   const handleSave = () => {
     if (!month) return;
@@ -37,11 +30,24 @@ export function MonthEditor({
   };
 
   const formatDateForInput = (isoString: string) => {
-    if (!isoString) return '';
+    if (!isoString) return "";
     const date = new Date(isoString);
-    const year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'America/New_York' });
-    const month = String(date.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
-    const day = String(date.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    const year = date.toLocaleString("en-US", {
+      year: "numeric",
+      timeZone: "America/New_York",
+    });
+    const month = String(
+      date.toLocaleString("en-US", {
+        month: "numeric",
+        timeZone: "America/New_York",
+      }),
+    ).padStart(2, "0");
+    const day = String(
+      date.toLocaleString("en-US", {
+        day: "numeric",
+        timeZone: "America/New_York",
+      }),
+    ).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
@@ -64,12 +70,16 @@ export function MonthEditor({
               value={formatDateForInput(startDate)}
               onChange={(e) => {
                 if (!e.target.value) {
-                  setStartDate('');
+                  setStartDate("");
                   return;
                 }
                 // User picks a date, store as UTC noon for consistent display
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                const [year, month, day] = e.target.value
+                  .split("-")
+                  .map(Number);
+                const utcNoon = new Date(
+                  Date.UTC(year, month - 1, day, 12, 0, 0),
+                );
                 setStartDate(utcNoon.toISOString());
               }}
             />
@@ -84,18 +94,22 @@ export function MonthEditor({
               value={formatDateForInput(endDate)}
               onChange={(e) => {
                 if (!e.target.value) {
-                  setEndDate('');
+                  setEndDate("");
                   return;
                 }
                 // User picks a date, store as UTC noon for consistent display
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                const [year, month, day] = e.target.value
+                  .split("-")
+                  .map(Number);
+                const utcNoon = new Date(
+                  Date.UTC(year, month - 1, day, 12, 0, 0),
+                );
                 setEndDate(utcNoon.toISOString());
               }}
             />
           </div>
         </div>
-        
+
         <div>
           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
             Subtitle (display text)

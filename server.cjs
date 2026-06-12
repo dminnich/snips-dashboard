@@ -83,7 +83,7 @@ function validateData(data) {
       }
       if (typeof e.id !== 'string') errors.push(`weeks[${i}].events[${j}].id must be a string`)
       if (typeof e.groupName !== 'string') errors.push(`weeks[${i}].events[${j}].groupName must be a string`)
-      if (typeof e.headcount !== 'number') errors.push(`weeks[${i}].events[${j}].headcount must be a number`)
+      if (!Number.isInteger(e.headcount) || e.headcount < 0) errors.push(`weeks[${i}].events[${j}].headcount must be a non-negative integer`)
       if (typeof e.housing !== 'string') errors.push(`weeks[${i}].events[${j}].housing must be a string`)
       if (typeof e.status !== 'string' || !EVENT_STATUSES.includes(e.status)) {
         errors.push(`weeks[${i}].events[${j}].status must be one of ${EVENT_STATUSES.join(', ')}`)
@@ -144,6 +144,7 @@ db.exec(`
     origin TEXT DEFAULT 'dashboard',
     icsUid TEXT,
     sequence INTEGER DEFAULT 0,
+    lastModified TEXT,
     lastSeen TEXT,
     startDate TEXT,
     endDate TEXT
@@ -171,7 +172,7 @@ const currentYear = new Date().getFullYear();
 function getMonthDates(name, year) {
   const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   const monthIndex = monthNames.indexOf(name.toLowerCase());
-  
+
   // Store dates at UTC noon to avoid timezone display issues
   // 2026-03-01T12:00:00Z displays as March 1 in all US timezones
   const start = new Date(Date.UTC(year, monthIndex, 1, 12, 0, 0));
@@ -281,10 +282,10 @@ const apiWriteLimiter = rateLimit({
   legacyHeaders: false,
 })
 
-console.log(`[${new Date().toISOString()}] Rate limiter: 30 req/min for write operations on /api/months/ and /api/weeks/`)
+console.log(`[${new Date().toISOString()}] Rate limiter: 30 req/min for write operations on /api/months/, /api/weeks/, /api/events, /api/reset, /api/sync/`)
 
 app.use('/api/', apiLimiter)
-app.use(['/api/months/', '/api/weeks/'], apiWriteLimiter)
+app.use(['/api/months/', '/api/weeks/', '/api/events', '/api/reset', '/api/sync/'], apiWriteLimiter)
 
 
 
@@ -309,7 +310,13 @@ function basicAuth(req, res, next) {
     const credentials = Buffer.from(base64Credentials, 'base64').toString('utf-8')
     const [username, password] = credentials.split(':')
 
-    if (username === AUTH_USERNAME && password === AUTH_PASSWORD) {
+    const userBuf = Buffer.from(username ?? '')
+    const passBuf = Buffer.from(password ?? '')
+    const expectedUser = Buffer.from(AUTH_USERNAME)
+    const expectedPass = Buffer.from(AUTH_PASSWORD)
+    const userOk = userBuf.length === expectedUser.length && crypto.timingSafeEqual(userBuf, expectedUser)
+    const passOk = passBuf.length === expectedPass.length && crypto.timingSafeEqual(passBuf, expectedPass)
+    if (userOk && passOk) {
       return next()
     }
   } catch (err) {
@@ -344,49 +351,43 @@ app.get('/api/data', (req, res) => {
     const months = db.prepare('SELECT * FROM months ORDER BY id').all()
     const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
     const events = db.prepare('SELECT * FROM events').all()
-    
+
     // Get event placements
     const eventMonths = db.prepare('SELECT eventId, monthId FROM event_months').all()
     const eventWeeks = db.prepare('SELECT eventId, weekId FROM event_weeks').all()
-    
+
     // Build placement maps
     const eventsByMonth = {}
     const eventsByWeek = {}
-    
+
     for (const em of eventMonths) {
       if (!eventsByMonth[em.monthId]) eventsByMonth[em.monthId] = []
       eventsByMonth[em.monthId].push(em.eventId)
     }
-    
+
     for (const ew of eventWeeks) {
       if (!eventsByWeek[ew.weekId]) eventsByWeek[ew.weekId] = []
       eventsByWeek[ew.weekId].push(ew.eventId)
     }
-    
+
+    const eventById = new Map(events.map(e => [e.id, e]))
+
     // Add events to months
-    const monthsWithEvents = months.map((m) => {
-      const monthEventIds = eventsByMonth[m.id] || []
-      const monthEvents = events.filter(e => monthEventIds.includes(e.id))
-      return {
-        ...m,
-        events: monthEventIds.map(id => events.find(e => e.id === id))
-      }
-    })
-    
+    const monthsWithEvents = months.map((m) => ({
+      ...m,
+      events: (eventsByMonth[m.id] || []).map(id => eventById.get(id)),
+    }))
+
     // Add events to weeks
-    const weeksWithEvents = weeks.map((w) => {
-      const weekEventIds = eventsByWeek[w.id] || []
-      const weekEvents = events.filter(e => weekEventIds.includes(e.id))
-      return {
-        ...w,
-        events: weekEventIds.map(id => events.find(e => e.id === id))
-      }
-    })
-    
+    const weeksWithEvents = weeks.map((w) => ({
+      ...w,
+      events: (eventsByWeek[w.id] || []).map(id => eventById.get(id)),
+    }))
+
     console.log(`[${new Date().toISOString()}] Data load: ${months.length} months, ${weeks.length} weeks, ${events.length} events`)
-    
-    res.json({ 
-      months: monthsWithEvents, 
+
+    res.json({
+      months: monthsWithEvents,
       weeks: weeksWithEvents,
       icsEnabled: !!process.env.ICS_URL,
       dbEventsDisabled: process.env.DISABLE_DB_EVENTS === 'true'
@@ -412,14 +413,14 @@ app.patch('/api/months/:id', (req, res) => {
     }
     const cleanSubtitle = sanitizeHtml(subtitle ?? '')
     const cleanSpecial = sanitizeHtml(specialEvents ?? '')
-    
+
     const updates = []
     const values = []
     if (subtitle !== undefined) { updates.push('subtitle = ?'); values.push(cleanSubtitle) }
     if (specialEvents !== undefined) { updates.push('specialEvents = ?'); values.push(cleanSpecial) }
     if (startDate !== undefined) { updates.push('startDate = ?'); values.push(startDate) }
     if (endDate !== undefined) { updates.push('endDate = ?'); values.push(endDate) }
-    
+
     if (updates.length > 0) {
       values.push(req.params.id)
       db.prepare(`UPDATE months SET ${updates.join(', ')} WHERE id = ?`).run(...values)
@@ -447,14 +448,14 @@ app.patch('/api/weeks/:id', (req, res) => {
     }
     const cleanSubtitle = sanitizeHtml(subtitle ?? '')
     const cleanSpecial = sanitizeHtml(specialEvents ?? '')
-    
+
     const updates = []
     const values = []
     if (subtitle !== undefined) { updates.push('subtitle = ?'); values.push(cleanSubtitle) }
     if (specialEvents !== undefined) { updates.push('specialEvents = ?'); values.push(cleanSpecial) }
     if (startDate !== undefined) { updates.push('startDate = ?'); values.push(startDate) }
     if (endDate !== undefined) { updates.push('endDate = ?'); values.push(endDate) }
-    
+
     if (updates.length > 0) {
       values.push(req.params.id)
       db.prepare(`UPDATE weeks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
@@ -478,28 +479,30 @@ app.post('/api/events', (req, res) => {
     if (groupName.length > 200) {
       return res.status(400).json({ error: 'groupName too long' })
     }
-    if (headcount !== undefined && typeof headcount !== 'number') {
-      return res.status(400).json({ error: 'headcount must be a number' })
+    if (headcount !== undefined && (!Number.isInteger(headcount) || headcount < 0)) {
+      return res.status(400).json({ error: 'headcount must be a non-negative integer' })
     }
-    const err1 = stringError(housing, 'housing', MAX_HOUSING)
-    if (err1) return res.status(400).json({ error: err1 })
+    if (housing !== undefined) {
+      const err1 = stringError(housing, 'housing', MAX_HOUSING)
+      if (err1) return res.status(400).json({ error: err1 })
+    }
     if (status !== undefined && !EVENT_STATUSES.includes(status)) {
       return res.status(400).json({ error: `status must be one of ${EVENT_STATUSES.join(', ')}` })
     }
     if (!startDate || !endDate) {
       return res.status(400).json({ error: 'startDate and endDate are required' })
     }
-    
+
     const eventId = crypto.randomUUID()
     const cleanGroupName = sanitizeHtml(groupName)
     const cleanHousing = sanitizeHtml(housing ?? '')
-    
+
     db.prepare('INSERT INTO events (id, groupName, headcount, housing, status, origin, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       .run(eventId, cleanGroupName, headcount ?? 0, cleanHousing, status ?? 'pending', 'dashboard', startDate, endDate)
-    
+
     // Place event in overlapping months and weeks
     placeDashboardEvent(db, eventId, startDate, endDate)
-    
+
     console.log(`[${new Date().toISOString()}] Event created: ${eventId} (${cleanGroupName})`)
     res.json({ id: eventId })
   } catch (err) {
@@ -516,7 +519,7 @@ app.patch('/api/events/:id', (req, res) => {
     if (!event) {
       return res.status(404).json({ error: 'Event not found' })
     }
-    
+
     // ICS events can only update status
     if (event.origin === 'ics') {
       const { status } = req.body
@@ -526,12 +529,12 @@ app.patch('/api/events/:id', (req, res) => {
       }
       return res.json({ ok: true })
     }
-    
+
     // Dashboard events can update all fields
     const { groupName, headcount, housing, status, startDate, endDate } = req.body
     const sets = []
     const vals = []
-    
+
     if (groupName !== undefined) {
       if (typeof groupName !== 'string' || !groupName.trim()) {
         return res.status(400).json({ error: 'groupName must be a non-empty string' })
@@ -539,8 +542,8 @@ app.patch('/api/events/:id', (req, res) => {
       sets.push('groupName = ?'); vals.push(sanitizeHtml(groupName))
     }
     if (headcount !== undefined) {
-      if (typeof headcount !== 'number') {
-        return res.status(400).json({ error: 'headcount must be a number' })
+      if (!Number.isInteger(headcount) || headcount < 0) {
+        return res.status(400).json({ error: 'headcount must be a non-negative integer' })
       }
       sets.push('headcount = ?'); vals.push(headcount)
     }
@@ -561,11 +564,11 @@ app.patch('/api/events/:id', (req, res) => {
     if (endDate !== undefined) {
       sets.push('endDate = ?'); vals.push(endDate)
     }
-    
+
     if (sets.length === 0) return res.json({ ok: true })
     vals.push(req.params.id)
     db.prepare(`UPDATE events SET ${sets.join(', ')} WHERE id = ?`).run(...vals)
-    
+
     // Re-place event if dates changed
     if (startDate || endDate) {
       const updatedEvent = db.prepare('SELECT * FROM events WHERE id = ?').get(req.params.id)
@@ -573,7 +576,7 @@ app.patch('/api/events/:id', (req, res) => {
       db.prepare('DELETE FROM event_weeks WHERE eventId = ?').run(req.params.id)
       placeDashboardEvent(db, req.params.id, updatedEvent.startDate, updatedEvent.endDate)
     }
-    
+
     console.log(`[${new Date().toISOString()}] Event updated: ${req.params.id}`)
     res.json({ ok: true })
   } catch (err) {
@@ -627,14 +630,14 @@ app.post('/api/reset', (req, res) => {
       // Clear subtitles and specialEvents
       db.exec("UPDATE months SET subtitle = '', specialEvents = ''")
       db.exec("UPDATE weeks SET subtitle = '', specialEvents = ''")
-      
+
       // Reset startDate/endDate to current year defaults
       const months = db.prepare('SELECT * FROM months ORDER BY id').all()
       for (const m of months) {
         const { start, end } = getMonthDates(m.name, currentYear)
         db.prepare('UPDATE months SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, m.id)
       }
-      
+
       const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
       for (const w of weeks) {
         const { start, end } = getWeekDates(w.weekNumber, currentYear)
@@ -666,7 +669,7 @@ app.put('/api/data', (req, res) => {
       db.exec('DELETE FROM events')
       db.exec('DELETE FROM weeks')
       db.exec('DELETE FROM months')
-      
+
       const insMonth = db.prepare('INSERT INTO months (id, name, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
       for (const m of months) {
         insMonth.run(
@@ -678,12 +681,12 @@ app.put('/api/data', (req, res) => {
           sanitizeHtml(m.specialEvents || ''),
         )
       }
-      
+
       const insWeek = db.prepare('INSERT INTO weeks (id, weekNumber, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
       const insEv = db.prepare('INSERT INTO events (id, groupName, headcount, housing, status, origin, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
       const insEventMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)')
       const insEventWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)')
-      
+
       for (const w of weeks) {
         insWeek.run(
           w.id,
@@ -728,11 +731,10 @@ app.put('/api/data', (req, res) => {
 })
 
 app.use((req, res) => {
-  console.log(`[${new Date().toISOString()}] 404: ${req.method} ${req.originalUrl}`)
   res.status(404).json({ error: 'Not found' })
 })
 
-app.use((err, req, res) => {
+app.use((err, req, res, _next) => {
   console.error(err)
   if (req.path.startsWith('/api/')) {
     res.status(err.status || 500).json({ error: err.message || 'Internal server error' })

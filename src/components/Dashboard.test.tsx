@@ -7,63 +7,31 @@ vi.mock("@/context/ThemeContext", () => ({
 }));
 
 const monthsData = [
-  {
-    id: "january",
-    name: "January",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-  {
-    id: "february",
-    name: "February",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-  { id: "march", name: "March", content: "", subtitle: "", specialEvents: "" },
-  { id: "april", name: "April", content: "", subtitle: "", specialEvents: "" },
-  { id: "may", name: "May", content: "", subtitle: "", specialEvents: "" },
-  {
-    id: "august",
-    name: "August",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-  {
-    id: "september",
-    name: "September",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-  {
-    id: "october",
-    name: "October",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-  {
-    id: "november",
-    name: "November",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-  {
-    id: "december",
-    name: "December",
-    content: "",
-    subtitle: "",
-    specialEvents: "",
-  },
-];
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+].map((name) => ({
+  id: name.toLowerCase(),
+  name,
+  startDate: "",
+  endDate: "",
+  subtitle: "",
+  specialEvents: "",
+  events: [],
+}));
 
 const weeksData = Array.from({ length: 10 }, (_, i) => ({
   id: `week-${i + 1}`,
   weekNumber: i + 1,
+  startDate: "",
+  endDate: "",
   subtitle: "",
   specialEvents: "",
   events: [],
@@ -82,6 +50,14 @@ vi.mock("@/hooks/useLocalData", () => ({
       exportData: () => '{"months":[],"weeks":[]}',
       importData: vi.fn(),
     },
+    syncStatus: {
+      status: "idle",
+      icsEnabled: false,
+      dbEventsDisabled: false,
+    },
+    triggerSync: vi.fn(),
+    resetData: vi.fn(),
+    refreshData: vi.fn(),
   }),
 }));
 
@@ -144,10 +120,10 @@ describe("Dashboard", () => {
     expect(h2?.textContent).toMatch(/Edit Week 1/);
   });
 
-  it("shows + Add Group buttons in admin mode", () => {
+  it("shows + Add Group button in admin mode", () => {
     render(<Dashboard />);
     fireEvent.click(screen.getByText("Edit"));
-    expect(screen.getAllByText("+ Add Group").length).toBe(10);
+    expect(screen.getByText("+ Add Group")).toBeInTheDocument();
   });
 
   it("opens Add Group modal when + Add Group clicked", () => {

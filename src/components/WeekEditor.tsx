@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import type { WeekData } from "@/types";
 import { Modal } from "./Modal";
 import { WysiwygEditor } from "./WysiwygEditor";
@@ -16,15 +16,6 @@ export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
   const [startDate, setStartDate] = useState(week?.startDate ?? "");
   const [endDate, setEndDate] = useState(week?.endDate ?? "");
 
-  useEffect(() => {
-    if (week) {
-      setSubtitle(week.subtitle);
-      setSpecialEvents(week.specialEvents);
-      setStartDate(week.startDate);
-      setEndDate(week.endDate);
-    }
-  }, [week]);
-
   const handleSave = () => {
     if (!week) return;
     onSave(week.id, { subtitle, specialEvents, startDate, endDate });
@@ -32,11 +23,24 @@ export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
   };
 
   const formatDateForInput = (isoString: string) => {
-    if (!isoString) return '';
+    if (!isoString) return "";
     const date = new Date(isoString);
-    const year = date.toLocaleString('en-US', { year: 'numeric', timeZone: 'America/New_York' });
-    const month = String(date.toLocaleString('en-US', { month: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
-    const day = String(date.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' })).padStart(2, '0');
+    const year = date.toLocaleString("en-US", {
+      year: "numeric",
+      timeZone: "America/New_York",
+    });
+    const month = String(
+      date.toLocaleString("en-US", {
+        month: "numeric",
+        timeZone: "America/New_York",
+      }),
+    ).padStart(2, "0");
+    const day = String(
+      date.toLocaleString("en-US", {
+        day: "numeric",
+        timeZone: "America/New_York",
+      }),
+    ).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
 
@@ -59,12 +63,16 @@ export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
               value={formatDateForInput(startDate)}
               onChange={(e) => {
                 if (!e.target.value) {
-                  setStartDate('');
+                  setStartDate("");
                   return;
                 }
                 // User picks a date, store as UTC noon for consistent display
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                const [year, month, day] = e.target.value
+                  .split("-")
+                  .map(Number);
+                const utcNoon = new Date(
+                  Date.UTC(year, month - 1, day, 12, 0, 0),
+                );
                 setStartDate(utcNoon.toISOString());
               }}
             />
@@ -79,18 +87,22 @@ export function WeekEditor({ week, open, onSave, onClose }: WeekEditorProps) {
               value={formatDateForInput(endDate)}
               onChange={(e) => {
                 if (!e.target.value) {
-                  setEndDate('');
+                  setEndDate("");
                   return;
                 }
                 // User picks a date, store as UTC noon for consistent display
-                const [year, month, day] = e.target.value.split('-').map(Number);
-                const utcNoon = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+                const [year, month, day] = e.target.value
+                  .split("-")
+                  .map(Number);
+                const utcNoon = new Date(
+                  Date.UTC(year, month - 1, day, 12, 0, 0),
+                );
                 setEndDate(utcNoon.toISOString());
               }}
             />
           </div>
         </div>
-        
+
         <div>
           <label className="mb-1 block text-xs font-semibold text-(--text-secondary)">
             Subtitle (display text)

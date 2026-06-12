@@ -11,28 +11,57 @@ interface MonthBlockProps {
   dbEventsDisabled?: boolean;
 }
 
-export function MonthBlock({ month, isAdmin, onEdit, onEditEvent, icsEnabled, dbEventsDisabled }: MonthBlockProps) {
-  const dashboardEvents = month.events.filter(e => e.origin === 'dashboard');
-  const icsEvents = month.events.filter(e => e.origin === 'ics');
+export function MonthBlock({
+  month,
+  isAdmin,
+  onEdit,
+  onEditEvent,
+  icsEnabled,
+  dbEventsDisabled,
+}: MonthBlockProps) {
+  const dashboardEvents = month.events.filter((e) => e.origin === "dashboard");
+  const icsEvents = month.events.filter((e) => e.origin === "ics");
 
   const formatDateRange = (start: string, end: string) => {
-    if (!start || !end) return '';
+    if (!start || !end) return "";
     const startDate = new Date(start);
     const endDate = new Date(end);
-    const startMonth = startDate.toLocaleString('en-US', { month: 'short', timeZone: 'America/New_York' });
-    const startDay = startDate.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
-    const endMonth = endDate.toLocaleString('en-US', { month: 'short', timeZone: 'America/New_York' });
-    const endDay = endDate.toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
+    const startMonth = startDate.toLocaleString("en-US", {
+      month: "short",
+      timeZone: "America/New_York",
+    });
+    const startDay = startDate.toLocaleString("en-US", {
+      day: "numeric",
+      timeZone: "America/New_York",
+    });
+    const endMonth = endDate.toLocaleString("en-US", {
+      month: "short",
+      timeZone: "America/New_York",
+    });
+    const endDay = endDate.toLocaleString("en-US", {
+      day: "numeric",
+      timeZone: "America/New_York",
+    });
     if (startMonth === endMonth) {
       return `${startMonth} ${startDay}-${endDay}`;
     }
     return `${startMonth} ${startDay} - ${endMonth} ${endDay}`;
   };
 
-  const formatEventTitle = (event: { groupName: string; startDate?: string; endDate?: string }) => {
+  const formatEventTitle = (event: {
+    groupName: string;
+    startDate?: string;
+    endDate?: string;
+  }) => {
     if (event.startDate && event.endDate) {
-      const startDay = new Date(event.startDate).toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
-      const endDay = new Date(event.endDate).toLocaleString('en-US', { day: 'numeric', timeZone: 'America/New_York' });
+      const startDay = new Date(event.startDate).toLocaleString("en-US", {
+        day: "numeric",
+        timeZone: "America/New_York",
+      });
+      const endDay = new Date(event.endDate).toLocaleString("en-US", {
+        day: "numeric",
+        timeZone: "America/New_York",
+      });
       return `${startDay} - ${endDay} ${event.groupName}`;
     }
     return event.groupName;
@@ -42,8 +71,13 @@ export function MonthBlock({ month, isAdmin, onEdit, onEditEvent, icsEnabled, db
     <div
       className="flex flex-1 flex-col overflow-hidden rounded border border-(--border) bg-(--surface)"
       onClick={(e) => {
-        if ((e.target as HTMLElement).closest('[data-event-card], [data-add-button]')) return;
-        isAdmin && onEdit?.(month.id);
+        if (
+          (e.target as HTMLElement).closest(
+            "[data-event-card], [data-add-button]",
+          )
+        )
+          return;
+        if (isAdmin) onEdit?.(month.id);
       }}
     >
       {/* Header */}
@@ -55,9 +89,7 @@ export function MonthBlock({ month, isAdmin, onEdit, onEditEvent, icsEnabled, db
         <span>
           {month.name}
           {isAdmin && (
-            <span className="ml-1.5 text-[10px] text-(--text-muted)">
-              ✏️
-            </span>
+            <span className="ml-1.5 text-[10px] text-(--text-muted)">✏️</span>
           )}
         </span>
         {/* Date range below name, same size as subtitle, muted color */}
@@ -84,26 +116,32 @@ export function MonthBlock({ month, isAdmin, onEdit, onEditEvent, icsEnabled, db
             </div>
             {dashboardEvents.length > 0 ? (
               <div className="space-y-0.5">
-                {dashboardEvents.map(event => (
+                {dashboardEvents.map((event) => (
                   <div key={event.id} data-event-card>
                     <div
-                      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? 'cursor-pointer' : ''} ${getStatusColor(event.status)}`}
+                      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? "cursor-pointer" : ""} ${getStatusColor(event.status)}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        isAdmin && onEditEvent?.(event.id);
+                        if (isAdmin) onEditEvent?.(event.id);
                       }}
                     >
-                      <span className="font-semibold">{formatEventTitle(event)}</span>
+                      <span className="font-semibold">
+                        {formatEventTitle(event)}
+                      </span>
                       {event.headcount > 0 && <span> ({event.headcount})</span>}
                       {event.housing && (
-                        <span className="ml-1 text-(--text-secondary)">{event.housing}</span>
+                        <span className="ml-1 text-(--text-secondary)">
+                          {event.housing}
+                        </span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-[10px] text-(--text-muted) italic">No groups</div>
+              <div className="text-[10px] text-(--text-muted) italic">
+                No groups
+              </div>
             )}
           </div>
         )}
@@ -117,26 +155,32 @@ export function MonthBlock({ month, isAdmin, onEdit, onEditEvent, icsEnabled, db
             </div>
             {icsEvents.length > 0 ? (
               <div className="space-y-0.5">
-                {icsEvents.map(event => (
+                {icsEvents.map((event) => (
                   <div key={event.id} data-event-card>
                     <div
-                      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? 'cursor-pointer' : ''} ${getStatusColor(event.status)}`}
+                      className={`rounded border-l-4 bg-(--surface-alt) p-1 text-xs ${isAdmin ? "cursor-pointer" : ""} ${getStatusColor(event.status)}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        isAdmin && onEditEvent?.(event.id);
+                        if (isAdmin) onEditEvent?.(event.id);
                       }}
                     >
-                      <span className="font-semibold">{formatEventTitle(event)}</span>
+                      <span className="font-semibold">
+                        {formatEventTitle(event)}
+                      </span>
                       {event.headcount > 0 && <span> ({event.headcount})</span>}
                       {event.housing && (
-                        <span className="ml-1 text-(--text-secondary)">{event.housing}</span>
+                        <span className="ml-1 text-(--text-secondary)">
+                          {event.housing}
+                        </span>
                       )}
                     </div>
                   </div>
                 ))}
               </div>
             ) : (
-              <div className="text-[10px] text-(--text-muted) italic">No apple events</div>
+              <div className="text-[10px] text-(--text-muted) italic">
+                No apple events
+              </div>
             )}
           </div>
         )}

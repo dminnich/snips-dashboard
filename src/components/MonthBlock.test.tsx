@@ -30,7 +30,10 @@ describe("MonthBlock", () => {
   });
 
   it("shows edit icon in admin mode", () => {
-    render(<MonthBlock month={baseMonth} isAdmin />);
-    expect(screen.getByText("✎")).toBeInTheDocument();
+    const { rerender } = render(<MonthBlock month={baseMonth} />);
+    const nonAdminCount = screen.getAllByText("✏️").length;
+    rerender(<MonthBlock month={baseMonth} isAdmin />);
+    // Admin mode adds ✏️ to the month header
+    expect(screen.getAllByText("✏️").length).toBeGreaterThan(nonAdminCount);
   });
 });

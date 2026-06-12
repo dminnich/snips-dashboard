@@ -69,8 +69,6 @@ components:
       required:
         - id
         - groupName
-        - headcount
-        - housing
         - status
         - origin
       properties:
@@ -98,6 +96,10 @@ components:
           type: integer
           default: 0
           description: ICS sequence number for update detection (only for origin=ics)
+        lastModified:
+          type: string
+          format: date-time
+          description: LAST-MODIFIED timestamp from ICS feed, used to detect title/date changes when SEQUENCE is not incremented (only for origin=ics)
         lastSeen:
           type: string
           format: date-time
@@ -133,7 +135,7 @@ components:
           description: Month end date (UTC ISO)
         subtitle:
           type: string
-          description: Display text (e.g., "January 1-31")
+          description: Display text
           maxLength: 500
         specialEvents:
           type: string
@@ -169,7 +171,7 @@ components:
           description: Week end date (UTC ISO)
         subtitle:
           type: string
-          description: Display text (e.g., "Week 1: May 31 - Jun 6")
+          description: Display text
           maxLength: 500
         specialEvents:
           type: string
@@ -195,6 +197,12 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Week'
+        icsEnabled:
+          type: boolean
+          description: Whether ICS calendar sync is configured (ICS_URL env var is set). Only present in GET responses.
+        dbEventsDisabled:
+          type: boolean
+          description: Whether dashboard event creation is disabled (DISABLE_DB_EVENTS env var). Only present in GET responses.
 
     Error:
       type: object

@@ -5,10 +5,6 @@ const { ICS_SYNC_MINUTES, ICS_URL } = process.env;
 
 let isSyncing = false;
 
-function getSyncStatus() {
-  return { isSyncing };
-}
-
 function startIcsSync(db) {
   if (!ICS_URL) {
     console.log(`[${new Date().toISOString()}] ICS sync: ICS_URL not set, skipping`);
@@ -50,39 +46,46 @@ async function syncNow(db) {
     for (const event of events) {
       const icsUid = event.uid;
       const sequence = event.sequence || 0;
-      const icsStart = event.start ? event.start.toISOString() : null;
-      const icsEnd = event.end ? event.end.toISOString() : null;
+      const icsLastModified = event.lastmodified ? event.lastmodified.toISOString() : null;
+      const isDateOnly = event.start?.dateOnly === true;
+      const icsStart = toStoredDate(event.start);
+      const icsEnd = toStoredEndDate(event.end, isDateOnly);
       const title = event.summary || 'Untitled Event';
-      
+
       seenUids.add(icsUid);
-      
+
       const existing = db.prepare('SELECT * FROM events WHERE icsUid = ?').get(icsUid);
-      
+
       if (existing) {
-        if (sequence > existing.sequence) {
-          db.prepare('UPDATE events SET groupName=?, sequence=?, lastSeen=?, startDate=?, endDate=? WHERE id=?')
-            .run(title, sequence, syncStart, icsStart, icsEnd, existing.id);
-          
+        const sequenceChanged = sequence > existing.sequence;
+        const lastModifiedChanged = icsLastModified !== null && icsLastModified !== existing.lastModified;
+        if (sequenceChanged || lastModifiedChanged) {
+          db.prepare('UPDATE events SET groupName=?, sequence=?, lastModified=?, lastSeen=?, startDate=?, endDate=? WHERE id=?')
+            .run(title, sequence, icsLastModified, syncStart, icsStart, icsEnd, existing.id);
+
           // Remove old placements, re-add based on new dates
           db.prepare('DELETE FROM event_months WHERE eventId = ?').run(existing.id);
           db.prepare('DELETE FROM event_weeks WHERE eventId = ?').run(existing.id);
-          placeEvent(db, existing.id, icsStart, icsEnd);
-          
+          placeDashboardEvent(db, existing.id, icsStart, icsEnd);
+
           updated++;
-          console.log(`[${syncStart}] ICS sync: updated event ${icsUid} (sequence ${existing.sequence} → ${sequence})`);
+          const reason = sequenceChanged
+            ? `sequence ${existing.sequence} → ${sequence}`
+            : `lastModified changed`;
+          console.log(`[${syncStart}] ICS sync: updated event ${icsUid} (${reason})`);
         } else {
           db.prepare('UPDATE events SET lastSeen=? WHERE icsUid=?').run(syncStart, icsUid);
           skipped++;
-          console.log(`[${syncStart}] ICS sync: skipped event ${icsUid} - sequence unchanged (${sequence})`);
+          console.log(`[${syncStart}] ICS sync: skipped event ${icsUid} - no changes detected`);
         }
       } else {
         const eventId = crypto.randomUUID();
-        db.prepare(`INSERT INTO events (id, groupName, headcount, housing, status, origin, icsUid, sequence, lastSeen, startDate, endDate) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-          .run(eventId, title, 0, '', 'pending', 'ics', icsUid, sequence, syncStart, icsStart, icsEnd);
-        
-        placeEvent(db, eventId, icsStart, icsEnd);
-        
+        db.prepare(`INSERT INTO events (id, groupName, headcount, housing, status, origin, icsUid, sequence, lastModified, lastSeen, startDate, endDate)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(eventId, title, 0, '', 'pending', 'ics', icsUid, sequence, icsLastModified, syncStart, icsStart, icsEnd);
+
+        placeDashboardEvent(db, eventId, icsStart, icsEnd);
+
         added++;
         console.log(`[${syncStart}] ICS sync: added event ${icsUid} "${title}"`);
       }
@@ -104,53 +107,49 @@ async function syncNow(db) {
   }
 }
 
-function placeEvent(db, eventId, startDate, endDate) {
-  if (!startDate) return;
-  
-  const eventEnd = endDate || startDate;
-  
-  // Find overlapping months
-  const months = db.prepare(`
-    SELECT id FROM months WHERE startDate <= ? AND endDate >= ?
-  `).all(eventEnd, startDate);
-  
-  for (const { id: monthId } of months) {
-    db.prepare('INSERT OR IGNORE INTO event_months (eventId, monthId) VALUES (?, ?)')
-      .run(eventId, monthId);
-    console.log(`[${new Date().toISOString()}] ICS sync: placed event in month ${monthId}`);
+// For all-day events (VALUE=DATE), node-ical parses dates as UTC midnight.
+// Storing at UTC noon avoids timezone display issues (same pattern as dashboard dates).
+function toStoredDate(date) {
+  if (!date) return null;
+  if (date.dateOnly) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12, 0, 0)).toISOString();
   }
-  
-  // Find overlapping weeks
-  const weeks = db.prepare(`
-    SELECT id FROM weeks WHERE startDate <= ? AND endDate >= ?
-  `).all(eventEnd, startDate);
-  
-  for (const { id: weekId } of weeks) {
-    db.prepare('INSERT OR IGNORE INTO event_weeks (eventId, weekId) VALUES (?, ?)')
-      .run(eventId, weekId);
-    console.log(`[${new Date().toISOString()}] ICS sync: placed event in week ${weekId}`);
+  return date.toISOString();
+}
+
+// iCal all-day DTEND is exclusive (Nov 9 means "ends before Nov 9" = Nov 8).
+// Subtract 1 day and store at noon UTC to get the inclusive end date.
+function toStoredEndDate(date, isDateOnly) {
+  if (!date) return null;
+  if (isDateOnly) {
+    return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate() - 1, 12, 0, 0)).toISOString();
   }
+  return date.toISOString();
 }
 
 function placeDashboardEvent(db, eventId, startDate, endDate) {
-  // Find overlapping months
+  if (!startDate) return;
+
+  const eventEnd = endDate || startDate;
+
   const months = db.prepare(`
     SELECT id FROM months WHERE startDate <= ? AND endDate >= ?
-  `).all(endDate, startDate);
-  
+  `).all(eventEnd, startDate);
+
   for (const { id: monthId } of months) {
     db.prepare('INSERT OR IGNORE INTO event_months (eventId, monthId) VALUES (?, ?)')
       .run(eventId, monthId);
+    console.log(`[${new Date().toISOString()}] Placed event ${eventId} in month ${monthId}`);
   }
-  
-  // Find overlapping weeks
+
   const weeks = db.prepare(`
     SELECT id FROM weeks WHERE startDate <= ? AND endDate >= ?
-  `).all(endDate, startDate);
-  
+  `).all(eventEnd, startDate);
+
   for (const { id: weekId } of weeks) {
     db.prepare('INSERT OR IGNORE INTO event_weeks (eventId, weekId) VALUES (?, ?)')
       .run(eventId, weekId);
+    console.log(`[${new Date().toISOString()}] Placed event ${eventId} in week ${weekId}`);
   }
 }
 

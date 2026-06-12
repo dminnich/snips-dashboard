@@ -9,6 +9,9 @@ export interface EventCard {
   status: EventStatus;
   origin: EventOrigin;
   icsUid?: string;
+  sequence?: number;
+  lastModified?: string;
+  lastSeen?: string;
   startDate?: string;
   endDate?: string;
 }
@@ -34,9 +37,7 @@ export interface WeekData {
 }
 
 export interface SyncStatus {
-  lastSync: string | null;
-  nextSync: string | null;
-  status: 'idle' | 'syncing' | 'success' | 'error';
+  status: "idle" | "syncing" | "success" | "error";
   icsEnabled: boolean;
   dbEventsDisabled: boolean;
 }

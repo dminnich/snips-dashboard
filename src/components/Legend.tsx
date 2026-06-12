@@ -18,18 +18,17 @@ interface LegendProps {
   dbEventsDisabled?: boolean;
 }
 
-export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onReset, onAddEvent, icsEnabled, dbEventsDisabled }: LegendProps) {
-  const formatTime = (isoString: string | null) => {
-    if (!isoString) return 'N/A';
-    return new Date(isoString).toLocaleString('en-US', {
-      timeZone: 'America/New_York',
-      month: 'short',
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit',
-    });
-  };
-
+export function Legend({
+  isAdmin,
+  onExport,
+  onImport,
+  syncStatus,
+  onSyncNow,
+  onReset,
+  onAddEvent,
+  icsEnabled,
+  dbEventsDisabled,
+}: LegendProps) {
   return (
     <div className="flex items-center justify-center gap-6 border-t border-(--border) bg-(--bg) p-2 text-xs text-(--text-secondary)">
       {isAdmin && (
@@ -65,20 +64,21 @@ export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onR
               <button
                 className="rounded bg-(--btn-bg) px-2 py-0.5 text-[10px] text-(--btn-text) hover:bg-(--btn-hover)"
                 onClick={onSyncNow}
-                disabled={syncStatus?.status === 'syncing'}
+                disabled={syncStatus?.status === "syncing"}
               >
-                🔄 Sync{syncStatus?.status === 'syncing' ? 'ing...' : ' Now'}
+                🔄 Sync{syncStatus?.status === "syncing" ? "ing..." : " Now"}
               </button>
-              {syncStatus && (
+              {syncStatus && syncStatus.status !== "idle" && (
                 <div className="flex items-center gap-2 border-l border-(--border) pl-2 text-[10px]">
-                  <span>Last sync: {formatTime(syncStatus.lastSync)}</span>
-                  {syncStatus.status === 'syncing' && (
-                    <span className="text-blue-400 animate-pulse">Syncing...</span>
+                  {syncStatus.status === "syncing" && (
+                    <span className="animate-pulse text-blue-400">
+                      Syncing...
+                    </span>
                   )}
-                  {syncStatus.status === 'success' && (
+                  {syncStatus.status === "success" && (
                     <span className="text-emerald-400">✓</span>
                   )}
-                  {syncStatus.status === 'error' && (
+                  {syncStatus.status === "error" && (
                     <span className="text-red-400">✗</span>
                   )}
                 </div>
@@ -87,7 +87,7 @@ export function Legend({ isAdmin, onExport, onImport, syncStatus, onSyncNow, onR
           )}
         </div>
       )}
-      
+
       {ITEMS.map((item) => (
         <div key={item.label} className="flex items-center gap-1.5">
           <span className={`inline-block h-3 w-3 rounded ${item.color}`} />
