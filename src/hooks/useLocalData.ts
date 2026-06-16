@@ -110,16 +110,20 @@ export function useLocalData() {
     setMonths((prev) =>
       prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
     );
-    apiFetch(`/api/months/${id}`, "PATCH", patch).catch((err) =>
-      logFailure(`updateMonth ${id}`, err),
-    );
+    apiFetch(`/api/months/${id}`, "PATCH", patch)
+      .then(() => refreshData())
+      .catch((err) =>
+        logFailure(`updateMonth ${id}`, err),
+      );
   }, []);
 
   const updateWeek = useCallback((id: string, patch: Partial<WeekData>) => {
     setWeeks((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch } : w)));
-    apiFetch(`/api/weeks/${id}`, "PATCH", patch).catch((err) =>
-      logFailure(`updateWeek ${id}`, err),
-    );
+    apiFetch(`/api/weeks/${id}`, "PATCH", patch)
+      .then(() => refreshData())
+      .catch((err) =>
+        logFailure(`updateWeek ${id}`, err),
+      );
   }, []);
 
   const addEvent = useCallback(

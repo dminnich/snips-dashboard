@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState } from "react";
 import { MonthBlock } from "./MonthBlock";
 import { WeekGrid } from "./WeekGrid";
 import { Legend } from "./Legend";
@@ -33,25 +33,6 @@ export function Dashboard() {
   const [editEvent, setEditEvent] = useState<EventCard | null>(null);
   const [isAddingEvent, setIsAddingEvent] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // Year rollover detection
-  useEffect(() => {
-    if (!isAdmin || months.length === 0) return;
-
-    const currentYear = new Date().getFullYear();
-    const firstMonth = months[0];
-    if (firstMonth.startDate) {
-      const storedYear = new Date(firstMonth.startDate).getFullYear();
-      if (currentYear > storedYear) {
-        const shouldReset = window.confirm(
-          `New year detected (${currentYear}). Would you like to reset the database and set dates for ${currentYear}?`,
-        );
-        if (shouldReset) {
-          resetData();
-        }
-      }
-    }
-  }, [isAdmin, months, resetData]);
 
   function handleSaveMonth(id: string, patch: Partial<MonthData>) {
     updateMonth(id, patch);

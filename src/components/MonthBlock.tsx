@@ -187,7 +187,7 @@ export function MonthBlock({
       </div>
 
       {/* Section 3: Special Events */}
-      {month.specialEvents && (
+      {month.specialEvents && month.specialEvents.replace(/<[^>]*>/g, "").trim() && (
         <div className="border-t border-(--border) px-2 pb-2 pt-1">
           <div className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
             <span>🎆</span>

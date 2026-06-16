@@ -168,6 +168,20 @@ db.exec(`
 `)
 
 const currentYear = new Date().getFullYear();
+const currentMonth = new Date().getMonth(); // 0-indexed: 0=Jan, 5=Jun, 8=Sep, 11=Dec
+
+function getYearForMonth(monthName) {
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const monthIndex = monthNames.indexOf(monthName.toLowerCase());
+  // Rolling 12-month window: months before current month get next year, months >= current month get current year
+  return monthIndex < currentMonth ? currentYear + 1 : currentYear;
+}
+
+function getYearForWeeks() {
+  // Summer weeks start May 31 (month index 4)
+  // If we're past August (month index 7), the summer weeks belong to next year
+  return currentMonth > 7 ? currentYear + 1 : currentYear;
+}
 
 function getMonthDates(name, year) {
   const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
@@ -202,17 +216,19 @@ if (monthCount === 0) {
     'August', 'September', 'October', 'November', 'December',
   ]
   for (const name of months) {
-    const { start, end } = getMonthDates(name, currentYear);
+    const year = getYearForMonth(name);
+    const { start, end } = getMonthDates(name, year);
     insertMonth.run(name.toLowerCase(), name, start, end)
   }
 
   const insertWeek = db.prepare('INSERT INTO weeks (id, weekNumber, startDate, endDate) VALUES (?, ?, ?, ?)')
+  const weekYear = getYearForWeeks();
   for (let i = 1; i <= 10; i++) {
-    const { start, end } = getWeekDates(i, currentYear);
+    const { start, end } = getWeekDates(i, weekYear);
     insertWeek.run(`week-${i}`, i, start, end)
   }
 
-  console.log(`[${new Date().toISOString()}] Database: Seeded default data for year ${currentYear} (10 months, 10 weeks with date ranges)`)
+  console.log(`[${new Date().toISOString()}] Database: Seeded default data for rolling window (10 months, 10 weeks with date ranges)`)
 }
 
 // Start ICS sync scheduler
@@ -424,6 +440,20 @@ app.patch('/api/months/:id', (req, res) => {
     if (updates.length > 0) {
       values.push(req.params.id)
       db.prepare(`UPDATE months SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+
+      // Re-place events if dates changed
+      if (startDate !== undefined || endDate !== undefined) {
+        const updatedMonth = db.prepare('SELECT * FROM months WHERE id = ?').get(req.params.id)
+        db.prepare('DELETE FROM event_months WHERE monthId = ?').run(req.params.id)
+        const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all()
+        const insEventMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)')
+        for (const e of events) {
+          const eventEnd = e.endDate || e.startDate
+          if (updatedMonth.startDate <= eventEnd && updatedMonth.endDate >= e.startDate) {
+            insEventMonth.run(e.id, req.params.id)
+          }
+        }
+      }
     }
     console.log(`[${new Date().toISOString()}] Month updated: ${req.params.id}`)
     res.json({ ok: true })
@@ -459,6 +489,20 @@ app.patch('/api/weeks/:id', (req, res) => {
     if (updates.length > 0) {
       values.push(req.params.id)
       db.prepare(`UPDATE weeks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
+
+      // Re-place events if dates changed
+      if (startDate !== undefined || endDate !== undefined) {
+        const updatedWeek = db.prepare('SELECT * FROM weeks WHERE id = ?').get(req.params.id)
+        db.prepare('DELETE FROM event_weeks WHERE weekId = ?').run(req.params.id)
+        const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all()
+        const insEventWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)')
+        for (const e of events) {
+          const eventEnd = e.endDate || e.startDate
+          if (updatedWeek.startDate <= eventEnd && updatedWeek.endDate >= e.startDate) {
+            insEventWeek.run(e.id, req.params.id)
+          }
+        }
+      }
     }
     console.log(`[${new Date().toISOString()}] Week updated: ${req.params.id}`)
     res.json({ ok: true })
@@ -631,22 +675,24 @@ app.post('/api/reset', (req, res) => {
       db.exec("UPDATE months SET subtitle = '', specialEvents = ''")
       db.exec("UPDATE weeks SET subtitle = '', specialEvents = ''")
 
-      // Reset startDate/endDate to current year defaults
+      // Reset startDate/endDate to current rolling window defaults
       const months = db.prepare('SELECT * FROM months ORDER BY id').all()
       for (const m of months) {
-        const { start, end } = getMonthDates(m.name, currentYear)
+        const year = getYearForMonth(m.name)
+        const { start, end } = getMonthDates(m.name, year)
         db.prepare('UPDATE months SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, m.id)
       }
 
       const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
+      const weekYear = getYearForWeeks()
       for (const w of weeks) {
-        const { start, end } = getWeekDates(w.weekNumber, currentYear)
+        const { start, end } = getWeekDates(w.weekNumber, weekYear)
         db.prepare('UPDATE weeks SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, w.id)
       }
     })
     tx()
-    console.log(`[${new Date().toISOString()}] Database reset: cleared all events, subtitles, specialEvents; reset dates to ${currentYear} defaults`)
-    res.json({ ok: true, year: currentYear })
+    console.log(`[${new Date().toISOString()}] Database reset: cleared all events, subtitles, specialEvents; reset dates to rolling window defaults`)
+    res.json({ ok: true })
   } catch (err) {
     console.error('POST /api/reset', err)
     res.status(500).json({ error: 'Internal server error' })
@@ -672,51 +718,67 @@ app.put('/api/data', (req, res) => {
 
       const insMonth = db.prepare('INSERT INTO months (id, name, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
       for (const m of months) {
+        const year = getYearForMonth(m.name);
         insMonth.run(
           m.id,
           m.name,
-          m.startDate || getMonthDates(m.name, currentYear).start,
-          m.endDate || getMonthDates(m.name, currentYear).end,
+          m.startDate || getMonthDates(m.name, year).start,
+          m.endDate || getMonthDates(m.name, year).end,
           sanitizeHtml(m.subtitle || ''),
           sanitizeHtml(m.specialEvents || ''),
         )
       }
 
       const insWeek = db.prepare('INSERT INTO weeks (id, weekNumber, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
+      const weekYear = getYearForWeeks();
       const insEv = db.prepare('INSERT INTO events (id, groupName, headcount, housing, status, origin, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      const insEventMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)')
-      const insEventWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)')
+      const insEventMonth = db.prepare('INSERT OR IGNORE INTO event_months (eventId, monthId) VALUES (?, ?)')
+      const insEventWeek = db.prepare('INSERT OR IGNORE INTO event_weeks (eventId, weekId) VALUES (?, ?)')
 
+      // Collect all unique events first to avoid duplicate inserts
+      const uniqueEvents = new Map()
+      const eventWeekPairs = []
       for (const w of weeks) {
         insWeek.run(
           w.id,
           w.weekNumber,
-          w.startDate || getWeekDates(w.weekNumber, currentYear).start,
-          w.endDate || getWeekDates(w.weekNumber, currentYear).end,
+          w.startDate || getWeekDates(w.weekNumber, weekYear).start,
+          w.endDate || getWeekDates(w.weekNumber, weekYear).end,
           sanitizeHtml(w.subtitle || ''),
           sanitizeHtml(w.specialEvents || '')
         )
         for (const e of w.events || []) {
-          insEv.run(
-            e.id,
-            sanitizeHtml(e.groupName),
-            e.headcount || 0,
-            sanitizeHtml(e.housing || ''),
-            e.status || 'pending',
-            e.origin || 'dashboard',
-            e.startDate,
-            e.endDate,
-          )
-          // Place event in this week
-          insEventWeek.run(e.id, w.id)
-          // Also place in overlapping months
-          const eventStart = e.startDate
-          const eventEnd = e.endDate
-          if (eventStart && eventEnd) {
-            const overlappingMonths = db.prepare('SELECT id FROM months WHERE startDate <= ? AND endDate >= ?').all(eventEnd, eventStart)
-            for (const { id: monthId } of overlappingMonths) {
-              insEventMonth.run(e.id, monthId)
-            }
+          if (!uniqueEvents.has(e.id)) {
+            uniqueEvents.set(e.id, e)
+          }
+          eventWeekPairs.push({ eventId: e.id, weekId: w.id })
+        }
+      }
+
+      // Insert unique events
+      for (const e of uniqueEvents.values()) {
+        insEv.run(
+          e.id,
+          sanitizeHtml(e.groupName),
+          e.headcount || 0,
+          sanitizeHtml(e.housing || ''),
+          e.status || 'pending',
+          e.origin || 'dashboard',
+          e.startDate,
+          e.endDate,
+        )
+      }
+
+      // Place events in weeks and overlapping months
+      for (const { eventId, weekId } of eventWeekPairs) {
+        insEventWeek.run(eventId, weekId)
+        const event = uniqueEvents.get(eventId)
+        const eventStart = event.startDate
+        const eventEnd = event.endDate
+        if (eventStart && eventEnd) {
+          const overlappingMonths = db.prepare('SELECT id FROM months WHERE startDate <= ? AND endDate >= ?').all(eventEnd, eventStart)
+          for (const { id: monthId } of overlappingMonths) {
+            insEventMonth.run(eventId, monthId)
           }
         }
       }

@@ -114,7 +114,7 @@ Set `.env` variables according to your needs.
 Calendar sync is one direction. ICS_URL => Dashboard.
 
 ### Adding events
-**Local**: Click "Add Group". Fill in the information. Click "Add"
+**Local**: Click "Edit". Click "Add Group". Fill in the information. Click "Add"
 
 **Sync**: Create in your calendar tool. Use this title standard for consistency: `group-name (headcount) housing`
 
@@ -145,13 +145,20 @@ Click "Export JSON"
 
 Click "Import JSON"
 
-### Starting over / Year change
+### Starting over
 
 1. Do a backup if you care about data.
 2. Click Reset
 3. Edit the months and weeks to align dates the way you want
 4. Add events via "Add Group" or "Sync Now"
 
+### Information about rolling data
+
+Information in Column Months (Jan-April, Aug-Dec) are rolled forward when that month is over.  So if its March 01, 2027 then January and February are for 2028.
+
+Information for Week Columns are rolled over at the end of August.  So on September 1 2027 the weeks are now for 2028.  Prior to that they were for 2027.
+
+Keep an eye on the date ranges under the Week and Month names as you will have to manually edit them from time to time.  For example, you will need to adjust the date ranges of the weeks in September of the current year to align for what you will want them to be for the following year.
 
 
 ## Docker
@@ -254,6 +261,10 @@ Data is sanitized using dompurify
     7. A date period that spans multiple months shows up in both months
     8. A date period that spans a week and a month show up in the week and the month
     9. Event titles look like expected
+    10. A date in the past isn't shown.
+    11. A date in the current-month + 11 months future is shown.
+    12. changing the start and end date of a month hides an event
+    13. changing the start and end date of a week hides an event
 12. adding multiple groups or editing multiple groups doesn't have data from the past events. sync refreshes the page
 13. editing an event in a remote calendar shows up
 14. adding an event in a remote calendar shows up

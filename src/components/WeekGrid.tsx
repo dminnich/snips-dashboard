@@ -189,7 +189,7 @@ export function WeekGrid({
         </div>
 
         {/* Section 3: Special Events */}
-        {weekData?.specialEvents && (
+        {weekData?.specialEvents && weekData.specialEvents.replace(/<[^>]*>/g, "").trim() && (
           <div className="border-t border-(--border) px-1.5 pb-1 pt-0.5">
             <div className="mb-0.5 flex items-center gap-1 text-[9px] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>🎆</span>
