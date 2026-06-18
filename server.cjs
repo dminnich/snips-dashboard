@@ -61,6 +61,21 @@ function validateData(data) {
     if (typeof m.name !== 'string') errors.push(`months[${i}].name must be a string`)
     if (typeof m.subtitle !== 'string') errors.push(`months[${i}].subtitle must be a string`)
     if (typeof m.specialEvents !== 'string') errors.push(`months[${i}].specialEvents must be a string`)
+    if (Array.isArray(m.events)) {
+      for (const [j, e] of m.events.entries()) {
+        if (!e || typeof e !== 'object') {
+          errors.push(`months[${i}].events[${j}] must be an object`)
+          continue
+        }
+        if (typeof e.id !== 'string') errors.push(`months[${i}].events[${j}].id must be a string`)
+        if (typeof e.groupName !== 'string') errors.push(`months[${i}].events[${j}].groupName must be a string`)
+        if (!Number.isInteger(e.headcount) || e.headcount < 0) errors.push(`months[${i}].events[${j}].headcount must be a non-negative integer`)
+        if (typeof e.housing !== 'string') errors.push(`months[${i}].events[${j}].housing must be a string`)
+        if (typeof e.status !== 'string' || !EVENT_STATUSES.includes(e.status)) {
+          errors.push(`months[${i}].events[${j}].status must be one of ${EVENT_STATUSES.join(', ')}`)
+        }
+      }
+    }
   }
 
   for (const [i, w] of data.weeks.entries()) {
@@ -123,7 +138,8 @@ db.exec(`
     startDate TEXT NOT NULL,
     endDate TEXT NOT NULL,
     subtitle TEXT DEFAULT '',
-    specialEvents TEXT DEFAULT ''
+    specialEvents TEXT DEFAULT '',
+    customDates INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS weeks (
@@ -132,7 +148,8 @@ db.exec(`
     startDate TEXT NOT NULL,
     endDate TEXT NOT NULL,
     subtitle TEXT DEFAULT '',
-    specialEvents TEXT DEFAULT ''
+    specialEvents TEXT DEFAULT '',
+    customDates INTEGER DEFAULT 0
   );
 
   CREATE TABLE IF NOT EXISTS events (
@@ -167,8 +184,48 @@ db.exec(`
   );
 `)
 
+// Add customDates column to existing databases (migration)
+try {
+  db.exec('ALTER TABLE months ADD COLUMN customDates INTEGER DEFAULT 0')
+} catch { /* column already exists */ }
+try {
+  db.exec('ALTER TABLE weeks ADD COLUMN customDates INTEGER DEFAULT 0')
+} catch { /* column already exists */ }
+
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth(); // 0-indexed: 0=Jan, 5=Jun, 8=Sep, 11=Dec
+
+// Consistent event placement: all events are placed in months/weeks based on date overlap.
+// An event appears in a period if its date range overlaps with the period's date range.
+// Used after: import, date changes, rolling window sync.
+function rePlaceAllEvents(db) {
+  db.prepare('DELETE FROM event_months').run();
+  db.prepare('DELETE FROM event_weeks').run();
+
+  const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all();
+  const months = db.prepare('SELECT * FROM months').all();
+  const weeks = db.prepare('SELECT * FROM weeks').all();
+
+  const insMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)');
+  const insWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)');
+
+  for (const e of events) {
+    const eventStart = e.startDate;
+    const eventEnd = e.endDate || eventStart;
+
+    for (const m of months) {
+      if (m.startDate <= eventEnd && m.endDate >= eventStart) {
+        insMonth.run(e.id, m.id);
+      }
+    }
+
+    for (const w of weeks) {
+      if (w.startDate <= eventEnd && w.endDate >= eventStart) {
+        insWeek.run(e.id, w.id);
+      }
+    }
+  }
+}
 
 function syncRollingWindow() {
   const now = new Date();
@@ -189,6 +246,7 @@ function syncRollingWindow() {
 
   const months = db.prepare('SELECT * FROM months ORDER BY id').all();
   for (const m of months) {
+    if (m.customDates) continue;
     const expectedYear = expectedYearForMonth(m.name);
     const expected = getMonthDates(m.name, expectedYear);
     if (m.startDate !== expected.start || m.endDate !== expected.end) {
@@ -200,6 +258,7 @@ function syncRollingWindow() {
   const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all();
   const weekYear = expectedYearForWeeks();
   for (const w of weeks) {
+    if (w.customDates) continue;
     const expected = getWeekDates(w.weekNumber, weekYear);
     if (w.startDate !== expected.start || w.endDate !== expected.end) {
       db.prepare('UPDATE weeks SET startDate = ?, endDate = ? WHERE id = ?').run(expected.start, expected.end, w.id);
@@ -208,23 +267,7 @@ function syncRollingWindow() {
   }
 
   if (updated) {
-    // Re-place all events after date shift
-    db.prepare('DELETE FROM event_months').run();
-    db.prepare('DELETE FROM event_weeks').run();
-    const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all();
-    const insMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)');
-    const insWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)');
-    for (const e of events) {
-      const eventEnd = e.endDate || e.startDate;
-      const overlappingMonths = db.prepare('SELECT id FROM months WHERE startDate <= ? AND endDate >= ?').all(eventEnd, e.startDate);
-      for (const { id: monthId } of overlappingMonths) {
-        insMonth.run(e.id, monthId);
-      }
-      const overlappingWeeks = db.prepare('SELECT id FROM weeks WHERE startDate <= ? AND endDate >= ?').all(eventEnd, e.startDate);
-      for (const { id: weekId } of overlappingWeeks) {
-        insWeek.run(e.id, weekId);
-      }
-    }
+    rePlaceAllEvents(db);
     console.log(`[${new Date().toISOString()}] Rolling window synced to ${cy}-${cy + 1}`);
   }
 }
@@ -501,18 +544,10 @@ app.patch('/api/months/:id', (req, res) => {
       values.push(req.params.id)
       db.prepare(`UPDATE months SET ${updates.join(', ')} WHERE id = ?`).run(...values)
 
-      // Re-place events if dates changed
+      // Re-place all events by date overlap if dates changed
       if (startDate !== undefined || endDate !== undefined) {
-        const updatedMonth = db.prepare('SELECT * FROM months WHERE id = ?').get(req.params.id)
-        db.prepare('DELETE FROM event_months WHERE monthId = ?').run(req.params.id)
-        const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all()
-        const insEventMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)')
-        for (const e of events) {
-          const eventEnd = e.endDate || e.startDate
-          if (updatedMonth.startDate <= eventEnd && updatedMonth.endDate >= e.startDate) {
-            insEventMonth.run(e.id, req.params.id)
-          }
-        }
+        db.prepare('UPDATE months SET customDates = 1 WHERE id = ?').run(req.params.id)
+        rePlaceAllEvents(db)
       }
     }
     console.log(`[${new Date().toISOString()}] Month updated: ${req.params.id}`)
@@ -550,18 +585,10 @@ app.patch('/api/weeks/:id', (req, res) => {
       values.push(req.params.id)
       db.prepare(`UPDATE weeks SET ${updates.join(', ')} WHERE id = ?`).run(...values)
 
-      // Re-place events if dates changed
+      // Mark as custom dates and re-place all events by date overlap if dates changed
       if (startDate !== undefined || endDate !== undefined) {
-        const updatedWeek = db.prepare('SELECT * FROM weeks WHERE id = ?').get(req.params.id)
-        db.prepare('DELETE FROM event_weeks WHERE weekId = ?').run(req.params.id)
-        const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all()
-        const insEventWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)')
-        for (const e of events) {
-          const eventEnd = e.endDate || e.startDate
-          if (updatedWeek.startDate <= eventEnd && updatedWeek.endDate >= e.startDate) {
-            insEventWeek.run(e.id, req.params.id)
-          }
-        }
+        db.prepare('UPDATE weeks SET customDates = 1 WHERE id = ?').run(req.params.id)
+        rePlaceAllEvents(db)
       }
     }
     console.log(`[${new Date().toISOString()}] Week updated: ${req.params.id}`)
@@ -740,14 +767,14 @@ app.post('/api/reset', (req, res) => {
       for (const m of months) {
         const year = getYearForMonth(m.name)
         const { start, end } = getMonthDates(m.name, year)
-        db.prepare('UPDATE months SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, m.id)
+        db.prepare('UPDATE months SET startDate = ?, endDate = ?, customDates = 0 WHERE id = ?').run(start, end, m.id)
       }
 
       const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
       const weekYear = getYearForWeeks()
       for (const w of weeks) {
         const { start, end } = getWeekDates(w.weekNumber, weekYear)
-        db.prepare('UPDATE weeks SET startDate = ?, endDate = ? WHERE id = ?').run(start, end, w.id)
+        db.prepare('UPDATE weeks SET startDate = ?, endDate = ?, customDates = 0 WHERE id = ?').run(start, end, w.id)
       }
     })
     tx()
@@ -792,12 +819,16 @@ app.put('/api/data', (req, res) => {
       const insWeek = db.prepare('INSERT INTO weeks (id, weekNumber, startDate, endDate, subtitle, specialEvents) VALUES (?, ?, ?, ?, ?, ?)')
       const weekYear = getYearForWeeks();
       const insEv = db.prepare('INSERT INTO events (id, groupName, headcount, housing, status, origin, startDate, endDate) VALUES (?, ?, ?, ?, ?, ?, ?, ?)')
-      const insEventMonth = db.prepare('INSERT OR IGNORE INTO event_months (eventId, monthId) VALUES (?, ?)')
-      const insEventWeek = db.prepare('INSERT OR IGNORE INTO event_weeks (eventId, weekId) VALUES (?, ?)')
 
-      // Collect all unique events first to avoid duplicate inserts
+      // Collect all unique events from both months and weeks
       const uniqueEvents = new Map()
-      const eventWeekPairs = []
+      for (const m of months) {
+        for (const e of m.events || []) {
+          if (!uniqueEvents.has(e.id)) {
+            uniqueEvents.set(e.id, e)
+          }
+        }
+      }
       for (const w of weeks) {
         insWeek.run(
           w.id,
@@ -811,7 +842,6 @@ app.put('/api/data', (req, res) => {
           if (!uniqueEvents.has(e.id)) {
             uniqueEvents.set(e.id, e)
           }
-          eventWeekPairs.push({ eventId: e.id, weekId: w.id })
         }
       }
 
@@ -829,19 +859,8 @@ app.put('/api/data', (req, res) => {
         )
       }
 
-      // Place events in weeks and overlapping months
-      for (const { eventId, weekId } of eventWeekPairs) {
-        insEventWeek.run(eventId, weekId)
-        const event = uniqueEvents.get(eventId)
-        const eventStart = event.startDate
-        const eventEnd = event.endDate
-        if (eventStart && eventEnd) {
-          const overlappingMonths = db.prepare('SELECT id FROM months WHERE startDate <= ? AND endDate >= ?').all(eventEnd, eventStart)
-          for (const { id: monthId } of overlappingMonths) {
-            insEventMonth.run(eventId, monthId)
-          }
-        }
-      }
+      // Place all events by date overlap (consistent with all other operations)
+      rePlaceAllEvents(db)
     })
     tx()
     console.log(`[${new Date().toISOString()}] Data replace: completed successfully`)

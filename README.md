@@ -245,8 +245,8 @@ Data is sanitized using dompurify
 3. DISABLE_DB_EVENTS=false and ICS_URL shows all buttons and sections
 4. Date ranges for months and weeks are right with a fresh database
 5. Export, Import, Reset, theme, sync, sync status work
-6. Date picker chooses the right dates. Dates that span months show with month names in the header for weeks and months
-7. Subtitle, dates and special events with styling work on months and weeks
+6. Date picker chooses the right dates. Dates that span months show with month names in the header for weeks and months.
+7. Subtitle, dates and special events with styling work on months and weeks. Removing them clears the boxes.
 8. Events can be added, edited.  Can't be worked on when not in admin mode
 9. Status coloring works
 10. Edit boxes are the same for ICS and dashbaord. Can only set status on ICS
