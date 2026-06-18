@@ -247,7 +247,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 | PATCH | `/api/events/:id` | Update event (all fields for dashboard, status-only for ICS) |
 | DELETE | `/api/events/:id` | Delete event |
 | POST | `/api/sync/ics` | Trigger manual ICS sync (admin only) |
-| POST | `/api/reset` | Purge all events, subtitles, specialEvents; reset dates to current year |
+| POST | `/api/reset` | Purge all events, subtitles, specialEvents; reset dates to rolling window defaults |
 
 ## Security Guidelines
 

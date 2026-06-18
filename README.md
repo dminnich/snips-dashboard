@@ -15,7 +15,6 @@ A full-screen 16:9 dashboard for tracking mission team events across the year. D
 - **ICS Calendar Sync** — automatically sync events from public external calendars (Apple Calendar, Google Calendar, etc.)
 - **3-section layout** — Dashboard events (✏️), Calendar events (🍎), Special events (🎆)
 - **Sync status indicator** — shows last sync time and sync progress (admin mode)
-- **Year rollover detection** — prompts to reset and update dates for new year
 
 
 ## Tech Stack
@@ -27,7 +26,7 @@ React 19, TypeScript, Vite 8, Tailwind CSS v4, Express 5, better-sqlite3
 ```
 snips-dashboard/
 ├── src/                    # React + TypeScript frontend
-│   ├── components/         # UI components (Dashboard, EventCard, etc.)
+│   ├── components/         # UI components (Dashboard, EventEditor, etc.)
 │   ├── hooks/              # Custom React hooks (useLocalData)
 │   ├── context/            # React context (ThemeContext)
 │   ├── utils/              # Utilities (dates, DOMPurify sanitization)
@@ -154,7 +153,7 @@ Click "Import JSON"
 
 ### Information about rolling data
 
-Information in Column Months (Jan-April, Aug-Dec) are rolled forward when that month is over.  So if its March 01, 2027 then January and February are for 2028.
+Information in Column Months (Jan-May, Aug-Dec) are rolled forward when that month is over.  So if its March 01, 2027 then January and February are for 2028.
 
 Information for Week Columns are rolled over at the end of August.  So on September 1 2027 the weeks are now for 2028.  Prior to that they were for 2027.
 
@@ -194,7 +193,7 @@ The image has three targets:
 | PATCH | `/api/events/:id` | Update event (all fields for dashboard, status-only for ICS) |
 | DELETE | `/api/events/:id` | Delete event |
 | POST | `/api/sync/ics` | Trigger manual ICS sync (admin only) |
-| POST | `/api/reset` | Purge all events, subtitles, specialEvents; reset dates to current year |
+| POST | `/api/reset` | Purge all events, subtitles, specialEvents; reset dates to rolling window defaults |
 
 ## Troubleshooting
 

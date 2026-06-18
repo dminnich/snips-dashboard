@@ -249,9 +249,6 @@ components:
       properties:
         ok:
           type: boolean
-        year:
-          type: integer
-          description: Year that dates were reset to
 
   parameters:
     monthId:
@@ -680,7 +677,7 @@ paths:
       tags:
         - Data
       summary: Reset database
-      description: Purge all events, subtitles, specialEvents; reset dates to current year defaults
+      description: Purge all events, subtitles, specialEvents; reset dates to rolling window defaults
       operationId: resetData
       responses:
         '200':
@@ -691,7 +688,6 @@ paths:
                 $ref: '#/components/schemas/ResetResponse'
               example:
                 ok: true
-                year: 2026
         '500':
           description: Internal server error
           content:

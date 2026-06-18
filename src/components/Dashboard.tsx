@@ -188,7 +188,7 @@ export function Dashboard() {
         onReset={() => {
           if (
             window.confirm(
-              "Are you sure? This will delete all events, clear subtitles and special events, and reset dates to current year defaults.",
+              "Are you sure? This will delete all events, clear subtitles and special events, and reset dates to rolling window defaults.",
             )
           ) {
             resetData();

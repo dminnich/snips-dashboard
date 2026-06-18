@@ -170,6 +170,65 @@ db.exec(`
 const currentYear = new Date().getFullYear();
 const currentMonth = new Date().getMonth(); // 0-indexed: 0=Jan, 5=Jun, 8=Sep, 11=Dec
 
+function syncRollingWindow() {
+  const now = new Date();
+  const cy = now.getFullYear();
+  const cm = now.getMonth();
+
+  function expectedYearForMonth(monthName) {
+    const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+    const mi = monthNames.indexOf(monthName.toLowerCase());
+    return mi < cm ? cy + 1 : cy;
+  }
+
+  function expectedYearForWeeks() {
+    return cm > 7 ? cy + 1 : cy;
+  }
+
+  let updated = false;
+
+  const months = db.prepare('SELECT * FROM months ORDER BY id').all();
+  for (const m of months) {
+    const expectedYear = expectedYearForMonth(m.name);
+    const expected = getMonthDates(m.name, expectedYear);
+    if (m.startDate !== expected.start || m.endDate !== expected.end) {
+      db.prepare('UPDATE months SET startDate = ?, endDate = ? WHERE id = ?').run(expected.start, expected.end, m.id);
+      updated = true;
+    }
+  }
+
+  const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all();
+  const weekYear = expectedYearForWeeks();
+  for (const w of weeks) {
+    const expected = getWeekDates(w.weekNumber, weekYear);
+    if (w.startDate !== expected.start || w.endDate !== expected.end) {
+      db.prepare('UPDATE weeks SET startDate = ?, endDate = ? WHERE id = ?').run(expected.start, expected.end, w.id);
+      updated = true;
+    }
+  }
+
+  if (updated) {
+    // Re-place all events after date shift
+    db.prepare('DELETE FROM event_months').run();
+    db.prepare('DELETE FROM event_weeks').run();
+    const events = db.prepare('SELECT * FROM events WHERE startDate IS NOT NULL').all();
+    const insMonth = db.prepare('INSERT INTO event_months (eventId, monthId) VALUES (?, ?)');
+    const insWeek = db.prepare('INSERT INTO event_weeks (eventId, weekId) VALUES (?, ?)');
+    for (const e of events) {
+      const eventEnd = e.endDate || e.startDate;
+      const overlappingMonths = db.prepare('SELECT id FROM months WHERE startDate <= ? AND endDate >= ?').all(eventEnd, e.startDate);
+      for (const { id: monthId } of overlappingMonths) {
+        insMonth.run(e.id, monthId);
+      }
+      const overlappingWeeks = db.prepare('SELECT id FROM weeks WHERE startDate <= ? AND endDate >= ?').all(eventEnd, e.startDate);
+      for (const { id: weekId } of overlappingWeeks) {
+        insWeek.run(e.id, weekId);
+      }
+    }
+    console.log(`[${new Date().toISOString()}] Rolling window synced to ${cy}-${cy + 1}`);
+  }
+}
+
 function getYearForMonth(monthName) {
   const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
   const monthIndex = monthNames.indexOf(monthName.toLowerCase());
@@ -364,6 +423,7 @@ app.get('/health', (req, res) => {
 
 app.get('/api/data', (req, res) => {
   try {
+    syncRollingWindow();
     const months = db.prepare('SELECT * FROM months ORDER BY id').all()
     const weeks = db.prepare('SELECT * FROM weeks ORDER BY weekNumber').all()
     const events = db.prepare('SELECT * FROM events').all()

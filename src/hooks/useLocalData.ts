@@ -84,8 +84,8 @@ export function useLocalData() {
               dbEventsDisabled: data.dbEventsDisabled,
             }));
           }
-          // Start polling after initial fetch if ICS is enabled
-          if (!pollingInterval && data.icsEnabled && !isPoll) {
+          // Start polling after initial fetch
+          if (!pollingInterval && !isPoll) {
             pollingInterval = setInterval(() => fetchData(true), 120000); // Poll every 2 minutes
           }
         })
