@@ -208,6 +208,9 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
 - **Health endpoint**: `GET /health` returns database connectivity status
 - **ICS Calendar Sync**: Automatic sync from ICS URL at configurable interval (env: `ICS_URL`, `ICS_SYNC_MINUTES`)
 - **Disable Dashboard Events**: Hide dashboard events sections (env: `DISABLE_DB_EVENTS`)
+- **Layout**: Select dashboard layout (env: `LAYOUT`)
+  - `traditional` (default): Jan-May left, 10 summer weeks center 2x5 grid, Aug-Dec right
+  - `week-side`: Summer weeks 1-5 left, Jan-May top-center / Aug-Dec bottom-center, summer weeks 6-10 right
 - **Event placement**: Date-based placement in all overlapping months/weeks via junction tables
 - **Validation**:
   - `groupName`: required, max 200 chars
@@ -233,6 +236,7 @@ None — single-page app. The dashboard renders at `/`. The **Edit/View** button
   - `ICS_URL`: URL to ICS calendar feed (optional, enables auto-sync)
   - `ICS_SYNC_MINUTES`: Sync interval in minutes (default: 60)
   - `DISABLE_DB_EVENTS`: Hide Dashboard Events sections and Add Group button (default: `false`)
+  - `LAYOUT`: Dashboard layout, `traditional` or `week-side` (default: `traditional`). Unknown values fall back to `traditional` and log a warning.
 - See [Container-Only Workflow](#container-only-workflow-docker--podman) above for the full host-side setup
 
 ### API Endpoints

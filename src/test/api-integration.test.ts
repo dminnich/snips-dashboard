@@ -21,6 +21,7 @@ describe("API Integration", () => {
         weeks: [],
         icsEnabled: false,
         dbEventsDisabled: false,
+        layout: "traditional",
       });
     });
 
@@ -92,7 +93,7 @@ describe("API Integration", () => {
   });
 
   describe("GET /api/data", () => {
-    it("returns months, weeks, icsEnabled, and dbEventsDisabled", async () => {
+    it("returns months, weeks, icsEnabled, dbEventsDisabled, and layout", async () => {
       const res = await fetch(`${baseUrl}/api/data`);
       expect(res.status).toBe(200);
       const data = await res.json();
@@ -100,6 +101,7 @@ describe("API Integration", () => {
       expect(Array.isArray(data.weeks)).toBe(true);
       expect(typeof data.icsEnabled).toBe("boolean");
       expect(typeof data.dbEventsDisabled).toBe("boolean");
+      expect(["traditional", "week-side"]).toContain(data.layout);
     });
   });
 

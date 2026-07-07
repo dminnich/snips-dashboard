@@ -15,6 +15,7 @@ export function Dashboard() {
   const {
     months,
     weeks,
+    layout,
     updateMonth,
     updateWeek,
     addEvent,
@@ -104,50 +105,113 @@ export function Dashboard() {
   const rightMonths = MONTHS_RIGHT.map(
     (name) => months.find((m) => m.name === name)!,
   );
+  const topWeeks = weeks.filter((w) => w.weekNumber >= 1 && w.weekNumber <= 5);
+  const bottomWeeks = weeks.filter(
+    (w) => w.weekNumber >= 6 && w.weekNumber <= 10,
+  );
 
   return (
     <div className="flex h-screen flex-col overflow-hidden bg-(--bg) text-(--text)">
       <div className="flex flex-1 gap-3 overflow-hidden p-3">
-        <div className="flex w-[20%] flex-col gap-3">
-          {leftMonths.map((month) => (
-            <MonthBlock
-              key={month.id}
-              month={month}
-              isAdmin={isAdmin}
-              onEdit={handleEditMonth}
-              onEditEvent={handleEditEvent}
-              icsEnabled={syncStatus.icsEnabled}
-              dbEventsDisabled={syncStatus.dbEventsDisabled}
-            />
-          ))}
-        </div>
+        {layout === "week-side" ? (
+          <>
+            <div className="flex w-[20%] flex-col gap-3">
+              <WeekGrid
+                weeks={topWeeks}
+                variant="column"
+                isAdmin={isAdmin}
+                onEditEvent={handleEditEvent}
+                onEditWeek={handleEditWeek}
+                icsEnabled={syncStatus.icsEnabled}
+                dbEventsDisabled={syncStatus.dbEventsDisabled}
+              />
+            </div>
 
-        <div className="flex w-[60%] flex-col gap-3">
-          <div className="flex flex-1 flex-col gap-2">
-            <WeekGrid
-              weeks={weeks}
-              isAdmin={isAdmin}
-              onEditEvent={handleEditEvent}
-              onEditWeek={handleEditWeek}
-              icsEnabled={syncStatus.icsEnabled}
-              dbEventsDisabled={syncStatus.dbEventsDisabled}
-            />
-          </div>
-        </div>
+            <div className="flex w-[60%] flex-col gap-3">
+              <div className="flex flex-1 flex-row gap-3">
+                {leftMonths.map((month) => (
+                  <MonthBlock
+                    key={month.id}
+                    month={month}
+                    isAdmin={isAdmin}
+                    onEdit={handleEditMonth}
+                    onEditEvent={handleEditEvent}
+                    icsEnabled={syncStatus.icsEnabled}
+                    dbEventsDisabled={syncStatus.dbEventsDisabled}
+                  />
+                ))}
+              </div>
+              <div className="flex flex-1 flex-row gap-3">
+                {rightMonths.map((month) => (
+                  <MonthBlock
+                    key={month.id}
+                    month={month}
+                    isAdmin={isAdmin}
+                    onEdit={handleEditMonth}
+                    onEditEvent={handleEditEvent}
+                    icsEnabled={syncStatus.icsEnabled}
+                    dbEventsDisabled={syncStatus.dbEventsDisabled}
+                  />
+                ))}
+              </div>
+            </div>
 
-        <div className="flex w-[20%] flex-col gap-3">
-          {rightMonths.map((month) => (
-            <MonthBlock
-              key={month.id}
-              month={month}
-              isAdmin={isAdmin}
-              onEdit={handleEditMonth}
-              onEditEvent={handleEditEvent}
-              icsEnabled={syncStatus.icsEnabled}
-              dbEventsDisabled={syncStatus.dbEventsDisabled}
-            />
-          ))}
-        </div>
+            <div className="flex w-[20%] flex-col gap-3">
+              <WeekGrid
+                weeks={bottomWeeks}
+                variant="column"
+                isAdmin={isAdmin}
+                onEditEvent={handleEditEvent}
+                onEditWeek={handleEditWeek}
+                icsEnabled={syncStatus.icsEnabled}
+                dbEventsDisabled={syncStatus.dbEventsDisabled}
+              />
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex w-[20%] flex-col gap-3">
+              {leftMonths.map((month) => (
+                <MonthBlock
+                  key={month.id}
+                  month={month}
+                  isAdmin={isAdmin}
+                  onEdit={handleEditMonth}
+                  onEditEvent={handleEditEvent}
+                  icsEnabled={syncStatus.icsEnabled}
+                  dbEventsDisabled={syncStatus.dbEventsDisabled}
+                />
+              ))}
+            </div>
+
+            <div className="flex w-[60%] flex-col gap-3">
+              <div className="flex flex-1 flex-col gap-2">
+                <WeekGrid
+                  weeks={weeks}
+                  isAdmin={isAdmin}
+                  onEditEvent={handleEditEvent}
+                  onEditWeek={handleEditWeek}
+                  icsEnabled={syncStatus.icsEnabled}
+                  dbEventsDisabled={syncStatus.dbEventsDisabled}
+                />
+              </div>
+            </div>
+
+            <div className="flex w-[20%] flex-col gap-3">
+              {rightMonths.map((month) => (
+                <MonthBlock
+                  key={month.id}
+                  month={month}
+                  isAdmin={isAdmin}
+                  onEdit={handleEditMonth}
+                  onEditEvent={handleEditEvent}
+                  icsEnabled={syncStatus.icsEnabled}
+                  dbEventsDisabled={syncStatus.dbEventsDisabled}
+                />
+              ))}
+            </div>
+          </>
+        )}
       </div>
 
       <input

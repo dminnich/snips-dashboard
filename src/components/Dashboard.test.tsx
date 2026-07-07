@@ -1,6 +1,7 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { Dashboard } from "./Dashboard";
+import type { Layout } from "@/types";
 
 vi.mock("@/context/ThemeContext", () => ({
   useTheme: () => ({ isDark: true, toggle: vi.fn() }),
@@ -37,10 +38,13 @@ const weeksData = Array.from({ length: 10 }, (_, i) => ({
   events: [],
 }));
 
+const mockLayout: { current: Layout } = { current: "traditional" };
+
 vi.mock("@/hooks/useLocalData", () => ({
   useLocalData: () => ({
     months: monthsData,
     weeks: weeksData,
+    layout: mockLayout.current,
     updateMonth: vi.fn(),
     updateWeek: vi.fn(),
     addEvent: vi.fn(),
@@ -51,7 +55,7 @@ vi.mock("@/hooks/useLocalData", () => ({
       importData: vi.fn(),
     },
     syncStatus: {
-      status: "idle",
+      status: "idle" as const,
       icsEnabled: false,
       dbEventsDisabled: false,
     },
@@ -60,6 +64,10 @@ vi.mock("@/hooks/useLocalData", () => ({
     refreshData: vi.fn(),
   }),
 }));
+
+beforeEach(() => {
+  mockLayout.current = "traditional";
+});
 
 describe("Dashboard", () => {
   it("renders all 12 month names", () => {
@@ -131,5 +139,36 @@ describe("Dashboard", () => {
     fireEvent.click(screen.getByText("Edit"));
     fireEvent.click(screen.getAllByText("+ Add Group")[0]);
     expect(screen.getByText("Add Group")).toBeInTheDocument();
+  });
+});
+
+describe("Dashboard layout=week-side", () => {
+  beforeEach(() => {
+    mockLayout.current = "week-side";
+  });
+
+  it("renders all 12 month names in two horizontal rows", () => {
+    render(<Dashboard />);
+    expect(screen.getByText("January")).toBeInTheDocument();
+    expect(screen.getByText("May")).toBeInTheDocument();
+    expect(screen.getByText("August")).toBeInTheDocument();
+    expect(screen.getByText("December")).toBeInTheDocument();
+  });
+
+  it("renders all 10 week headers on the sides", () => {
+    render(<Dashboard />);
+    for (let i = 1; i <= 10; i++) {
+      expect(screen.getByText(`Week ${i}`)).toBeInTheDocument();
+    }
+  });
+
+  it("opens WeekEditor for a side-mounted week in admin mode", () => {
+    const { container } = render(<Dashboard />);
+    fireEvent.click(screen.getByText("Edit"));
+    fireEvent.click(
+      screen.getByText("Week 6").closest('div[class*="cursor-pointer"]')!,
+    );
+    const h2 = container.querySelector("h2");
+    expect(h2?.textContent).toMatch(/Edit Week 6/);
   });
 });

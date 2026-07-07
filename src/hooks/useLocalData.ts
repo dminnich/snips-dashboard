@@ -1,5 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
-import type { MonthData, WeekData, EventCard, SyncStatus } from "@/types";
+import type {
+  Layout,
+  MonthData,
+  WeekData,
+  EventCard,
+  SyncStatus,
+} from "@/types";
 import { SUMMER_WEEKS } from "@/utils/dates";
 
 function createDefaultMonths(): MonthData[] {
@@ -53,6 +59,42 @@ function logFailure(action: string, err: unknown) {
   console.error(`useLocalData: ${action} failed`, err);
 }
 
+interface ApiData {
+  months?: MonthData[];
+  weeks?: WeekData[];
+  icsEnabled?: boolean;
+  dbEventsDisabled?: boolean;
+  layout?: Layout;
+}
+
+function applyApiData(
+  data: ApiData,
+  setters: {
+    setMonths: (m: MonthData[]) => void;
+    setWeeks: (w: WeekData[]) => void;
+    setSyncStatus: React.Dispatch<React.SetStateAction<SyncStatus>>;
+    setLayout: (l: Layout) => void;
+  },
+) {
+  if (data.months?.length) setters.setMonths(data.months);
+  if (data.weeks?.length) setters.setWeeks(data.weeks);
+  if (data.icsEnabled !== undefined) {
+    setters.setSyncStatus((prev) => ({
+      ...prev,
+      icsEnabled: data.icsEnabled!,
+    }));
+  }
+  if (data.dbEventsDisabled !== undefined) {
+    setters.setSyncStatus((prev) => ({
+      ...prev,
+      dbEventsDisabled: data.dbEventsDisabled!,
+    }));
+  }
+  if (data.layout === "traditional" || data.layout === "week-side") {
+    setters.setLayout(data.layout);
+  }
+}
+
 export interface DevToolbar {
   exportData: () => string;
   importData: (json: string) => void;
@@ -61,6 +103,7 @@ export interface DevToolbar {
 export function useLocalData() {
   const [months, setMonths] = useState<MonthData[]>(createDefaultMonths);
   const [weeks, setWeeks] = useState<WeekData[]>(createDefaultWeeks);
+  const [layout, setLayout] = useState<Layout>("traditional");
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({
     status: "idle",
     icsEnabled: false,
@@ -73,20 +116,9 @@ export function useLocalData() {
     const fetchData = (isPoll = false) => {
       apiGet("/api/data")
         .then((data) => {
-          if (data.months?.length) setMonths(data.months);
-          if (data.weeks?.length) setWeeks(data.weeks);
-          if (data.icsEnabled !== undefined) {
-            setSyncStatus((prev) => ({ ...prev, icsEnabled: data.icsEnabled }));
-          }
-          if (data.dbEventsDisabled !== undefined) {
-            setSyncStatus((prev) => ({
-              ...prev,
-              dbEventsDisabled: data.dbEventsDisabled,
-            }));
-          }
-          // Start polling after initial fetch
+          applyApiData(data, { setMonths, setWeeks, setSyncStatus, setLayout });
           if (!pollingInterval && !isPoll) {
-            pollingInterval = setInterval(() => fetchData(true), 120000); // Poll every 2 minutes
+            pollingInterval = setInterval(() => fetchData(true), 120000);
           }
         })
         .catch((err) => {
@@ -106,25 +138,38 @@ export function useLocalData() {
     };
   }, []);
 
-  const updateMonth = useCallback((id: string, patch: Partial<MonthData>) => {
-    setMonths((prev) =>
-      prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
-    );
-    apiFetch(`/api/months/${id}`, "PATCH", patch)
-      .then(() => refreshData())
-      .catch((err) =>
-        logFailure(`updateMonth ${id}`, err),
-      );
+  const refreshData = useCallback(async () => {
+    try {
+      const data = await apiGet("/api/data");
+      applyApiData(data, { setMonths, setWeeks, setSyncStatus, setLayout });
+    } catch (err) {
+      logFailure("refreshData", err);
+    }
   }, []);
 
-  const updateWeek = useCallback((id: string, patch: Partial<WeekData>) => {
-    setWeeks((prev) => prev.map((w) => (w.id === id ? { ...w, ...patch } : w)));
-    apiFetch(`/api/weeks/${id}`, "PATCH", patch)
-      .then(() => refreshData())
-      .catch((err) =>
-        logFailure(`updateWeek ${id}`, err),
+  const updateMonth = useCallback(
+    (id: string, patch: Partial<MonthData>) => {
+      setMonths((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, ...patch } : m)),
       );
-  }, []);
+      apiFetch(`/api/months/${id}`, "PATCH", patch)
+        .then(() => refreshData())
+        .catch((err) => logFailure(`updateMonth ${id}`, err));
+    },
+    [refreshData],
+  );
+
+  const updateWeek = useCallback(
+    (id: string, patch: Partial<WeekData>) => {
+      setWeeks((prev) =>
+        prev.map((w) => (w.id === id ? { ...w, ...patch } : w)),
+      );
+      apiFetch(`/api/weeks/${id}`, "PATCH", patch)
+        .then(() => refreshData())
+        .catch((err) => logFailure(`updateWeek ${id}`, err));
+    },
+    [refreshData],
+  );
 
   const addEvent = useCallback(
     async (data: {
@@ -202,24 +247,12 @@ export function useLocalData() {
       const res = await fetch("/api/sync/ics", { method: "POST" });
       if (!res.ok) throw new Error(`Sync failed: ${res.status}`);
       const result = await res.json();
-      // Refresh data after sync to get new events
       const data = await apiGet("/api/data");
-      if (data.months?.length) setMonths(data.months);
-      if (data.weeks?.length) setWeeks(data.weeks);
-      if (data.icsEnabled !== undefined) {
-        setSyncStatus((prev) => ({ ...prev, icsEnabled: data.icsEnabled }));
-      }
-      if (data.dbEventsDisabled !== undefined) {
-        setSyncStatus((prev) => ({
-          ...prev,
-          dbEventsDisabled: data.dbEventsDisabled,
-        }));
-      }
+      applyApiData(data, { setMonths, setWeeks, setSyncStatus, setLayout });
       setSyncStatus((prev) => ({
         ...prev,
         status: result.status === "error" ? "error" : "success",
       }));
-      // Clear success/error status after 3 seconds
       setTimeout(() => {
         setSyncStatus((prev) => ({ ...prev, status: "idle" }));
       }, 3000);
@@ -236,33 +269,12 @@ export function useLocalData() {
       const res = await fetch("/api/reset", { method: "POST" });
       if (!res.ok) throw new Error(`Reset failed: ${res.status}`);
       const result = await res.json();
-      // Refresh data after reset
       const data = await apiGet("/api/data");
-      if (data.months?.length) setMonths(data.months);
-      if (data.weeks?.length) setWeeks(data.weeks);
+      applyApiData(data, { setMonths, setWeeks, setSyncStatus, setLayout });
       return result;
     } catch (err) {
       logFailure("resetData", err);
       throw err;
-    }
-  }, []);
-
-  const refreshData = useCallback(async () => {
-    try {
-      const data = await apiGet("/api/data");
-      if (data.months?.length) setMonths(data.months);
-      if (data.weeks?.length) setWeeks(data.weeks);
-      if (data.icsEnabled !== undefined) {
-        setSyncStatus((prev) => ({ ...prev, icsEnabled: data.icsEnabled }));
-      }
-      if (data.dbEventsDisabled !== undefined) {
-        setSyncStatus((prev) => ({
-          ...prev,
-          dbEventsDisabled: data.dbEventsDisabled,
-        }));
-      }
-    } catch (err) {
-      logFailure("refreshData", err);
     }
   }, []);
 
@@ -292,6 +304,7 @@ export function useLocalData() {
   return {
     months,
     weeks,
+    layout,
     updateMonth,
     updateWeek,
     addEvent,

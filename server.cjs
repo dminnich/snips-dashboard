@@ -119,6 +119,13 @@ const PORT = process.env.PORT || 3000
 const DATA_DIR = process.env.DATA_DIR || __dirname
 const DB_PATH = path.join(DATA_DIR, 'data.db')
 
+const VALID_LAYOUTS = ['traditional', 'week-side']
+const LAYOUT_RAW = (process.env.LAYOUT || 'traditional').toLowerCase()
+const LAYOUT = VALID_LAYOUTS.includes(LAYOUT_RAW) ? LAYOUT_RAW : 'traditional'
+if (LAYOUT_RAW !== LAYOUT) {
+  console.log(`[${new Date().toISOString()}] Layout: unknown value "${process.env.LAYOUT}", falling back to "traditional" (valid: ${VALID_LAYOUTS.join(', ')})`)
+}
+
 const dbExists = fs.existsSync(DB_PATH)
 let db
 try {
@@ -509,7 +516,8 @@ app.get('/api/data', (req, res) => {
       months: monthsWithEvents,
       weeks: weeksWithEvents,
       icsEnabled: !!process.env.ICS_URL,
-      dbEventsDisabled: process.env.DISABLE_DB_EVENTS === 'true'
+      dbEventsDisabled: process.env.DISABLE_DB_EVENTS === 'true',
+      layout: LAYOUT
     })
   } catch (err) {
     console.error('GET /api/data', err)
@@ -903,5 +911,6 @@ const server = app.listen(PORT, () => {
   console.log(`[${new Date().toISOString()}] Database: ${DB_PATH}`)
   console.log(`[${new Date().toISOString()}] Authentication: ${AUTH_ENABLED ? 'enabled' : 'disabled'}`)
   console.log(`[${new Date().toISOString()}] Trust proxy: 1`)
+  console.log(`[${new Date().toISOString()}] Layout: ${LAYOUT}`)
   console.log(`[${new Date().toISOString()}] Server running on http://localhost:${PORT}`)
 })

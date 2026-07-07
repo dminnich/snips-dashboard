@@ -1,5 +1,6 @@
 export type EventStatus = "mission" | "pending" | "paid";
 export type EventOrigin = "dashboard" | "ics";
+export type Layout = "traditional" | "week-side";
 
 export interface EventCard {
   id: string;

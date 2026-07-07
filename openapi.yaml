@@ -203,6 +203,10 @@ components:
         dbEventsDisabled:
           type: boolean
           description: Whether dashboard event creation is disabled (DISABLE_DB_EVENTS env var). Only present in GET responses.
+        layout:
+          type: string
+          enum: [traditional, week-side]
+          description: Dashboard layout selected by the LAYOUT env var. Only present in GET responses.
 
     Error:
       type: object

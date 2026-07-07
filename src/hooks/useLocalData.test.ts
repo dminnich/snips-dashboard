@@ -23,6 +23,41 @@ beforeEach(() => {
   });
 });
 
+describe("useLocalData layout", () => {
+  it("defaults to 'traditional' when /api/data omits layout", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/data") {
+        return Promise.resolve(
+          new Response(JSON.stringify({ months: [], weeks: [] }), {
+            status: 200,
+          }),
+        );
+      }
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+    const { result } = renderHook(() => useLocalData());
+    return waitFor(() => expect(result.current.layout).toBe("traditional"));
+  });
+
+  it("reads layout from /api/data response", () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url === "/api/data") {
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({ months: [], weeks: [], layout: "week-side" }),
+            { status: 200 },
+          ),
+        );
+      }
+      return Promise.resolve(new Response("{}", { status: 200 }));
+    });
+    const { result } = renderHook(() => useLocalData());
+    return waitFor(() => expect(result.current.layout).toBe("week-side"));
+  });
+});
+
 describe("useLocalData", () => {
   it("initializes with 10 months (5 left + 5 right)", () => {
     const { result } = renderHook(() => useLocalData());
