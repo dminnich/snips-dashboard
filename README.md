@@ -1,10 +1,10 @@
 # Snips Dashboard — Mission Team Board
 
-A full-screen 16:9 dashboard for tracking mission team events across the year. Displays January–May on the left, 10 summer weeks in the center, and August–December on the right.
+A full-screen 16:9 dashboard for tracking mission team events across the year. By default, displays January–May on the left, 10 summer weeks in the center, and August–December on the right. Switch to the `week-side` layout (via the `LAYOUT` env var) to put summer weeks 1-5 on the left, Jan-May on top / Aug-Dec on bottom in the center, and summer weeks 6-10 on the right.
 
 ## Features
 
-- **3-column grid layout** optimized for 16:9 monitors
+- **Two layouts** — `traditional` (default, 3 columns) or `week-side` (weeks on the sides, months stacked in the center), selected by the `LAYOUT` env var
 - **Dark/light theme toggle**
 - **Edit/View toggle** — click to switch between display mode and admin CRUD
 - **Add Group** — create event cards with group name, headcount, housing, status, and date range
@@ -106,6 +106,7 @@ Set `.env` variables according to your needs.
 | `ICS_URL` | (none) | URL to ICS calendar feed (e.g., from Apple). Leave unset to disable the feature.|
 | `ICS_SYNC_MINUTES` | `60` | How often to sync (in minutes) |
 | `DISABLE_DB_EVENTS` | `false` | True turns off local data editing to use ICS only. |
+| `LAYOUT` | `traditional` | Dashboard layout. `traditional` = Jan-May left, 10 summer weeks center, Aug-Dec right. `week-side` = weeks 1-5 left, Jan-May top + Aug-Dec bottom in center, weeks 6-10 right. Unknown values fall back to `traditional`. |
 | `AUTH_ENABLED` | `false` | Set to `true` to require authentication |
 | `AUTH_USERNAME` | `admin` | Username for login |
 | `AUTH_PASSWORD` | `changeme` | Password for login |
