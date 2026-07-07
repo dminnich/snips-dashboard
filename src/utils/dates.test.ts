@@ -4,7 +4,9 @@ import {
   MONTHS_LEFT,
   MONTHS_RIGHT,
   SUMMER_WEEKS,
+  sortEventsByStartDate,
 } from "./dates";
+import type { EventCard } from "@/types";
 
 describe("getStatusColor", () => {
   it("returns red for mission", () => {
@@ -61,5 +63,83 @@ describe("SUMMER_WEEKS", () => {
     for (const w of SUMMER_WEEKS) {
       expect("range" in w).toBe(false);
     }
+  });
+});
+
+function makeEvent(
+  id: string,
+  groupName: string,
+  startDate: string | undefined,
+): EventCard {
+  return {
+    id,
+    groupName,
+    headcount: 0,
+    housing: "",
+    status: "pending",
+    origin: "dashboard",
+    startDate,
+  };
+}
+
+describe("sortEventsByStartDate", () => {
+  it("sorts events chronologically by startDate", () => {
+    const feb13 = "2026-02-13T12:00:00.000Z";
+    const feb17 = "2026-02-17T12:00:00.000Z";
+    const feb20 = "2026-02-20T12:00:00.000Z";
+    const events = [
+      makeEvent("c", "Charlie", feb20),
+      makeEvent("a", "Alpha", feb13),
+      makeEvent("b", "Bravo", feb17),
+    ];
+    const sorted = sortEventsByStartDate(events);
+    expect(sorted.map((e) => e.groupName)).toEqual([
+      "Alpha",
+      "Bravo",
+      "Charlie",
+    ]);
+  });
+
+  it("does not mutate the input array", () => {
+    const events = [
+      makeEvent("b", "Bravo", "2026-02-17T12:00:00.000Z"),
+      makeEvent("a", "Alpha", "2026-02-13T12:00:00.000Z"),
+    ];
+    const original = events.map((e) => e.id);
+    sortEventsByStartDate(events);
+    expect(events.map((e) => e.id)).toEqual(original);
+  });
+
+  it("breaks ties on startDate using groupName", () => {
+    const same = "2026-02-13T12:00:00.000Z";
+    const events = [
+      makeEvent("1", "Charlie", same),
+      makeEvent("2", "Alpha", same),
+      makeEvent("3", "Bravo", same),
+    ];
+    const sorted = sortEventsByStartDate(events);
+    expect(sorted.map((e) => e.groupName)).toEqual([
+      "Alpha",
+      "Bravo",
+      "Charlie",
+    ]);
+  });
+
+  it("places events without a startDate at the end", () => {
+    const events = [
+      makeEvent("a", "Alpha", undefined),
+      makeEvent("b", "Bravo", "2026-02-17T12:00:00.000Z"),
+      makeEvent("c", "Charlie", undefined),
+    ];
+    const sorted = sortEventsByStartDate(events);
+    expect(sorted.map((e) => e.groupName)).toEqual([
+      "Bravo",
+      "Alpha",
+      "Charlie",
+    ]);
+  });
+
+  it("returns an empty array unchanged", () => {
+    expect(sortEventsByStartDate([])).toEqual([]);
   });
 });

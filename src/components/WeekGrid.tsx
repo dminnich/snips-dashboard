@@ -1,4 +1,4 @@
-import { SUMMER_WEEKS } from "@/utils/dates";
+import { SUMMER_WEEKS, sortEventsByStartDate } from "@/utils/dates";
 import { getStatusColor } from "@/utils/dates";
 import { sanitizeHtml } from "@/utils/sanitize";
 import type { WeekData } from "@/types";
@@ -72,9 +72,12 @@ export function WeekGrid({
     const weekData = weeks.find((w) => w.weekNumber === weekMeta.number);
     const weekId = weekData?.id ?? `week-${weekMeta.number}`;
 
-    const dashboardEvents =
-      weekData?.events.filter((e) => e.origin === "dashboard") || [];
-    const icsEvents = weekData?.events.filter((e) => e.origin === "ics") || [];
+    const dashboardEvents = sortEventsByStartDate(
+      weekData?.events.filter((e) => e.origin === "dashboard") || [],
+    );
+    const icsEvents = sortEventsByStartDate(
+      weekData?.events.filter((e) => e.origin === "ics") || [],
+    );
 
     return (
       <div

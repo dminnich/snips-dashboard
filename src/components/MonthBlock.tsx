@@ -1,5 +1,5 @@
 import type { MonthData } from "@/types";
-import { getStatusColor } from "@/utils/dates";
+import { getStatusColor, sortEventsByStartDate } from "@/utils/dates";
 import { sanitizeHtml } from "@/utils/sanitize";
 
 interface MonthBlockProps {
@@ -19,8 +19,12 @@ export function MonthBlock({
   icsEnabled,
   dbEventsDisabled,
 }: MonthBlockProps) {
-  const dashboardEvents = month.events.filter((e) => e.origin === "dashboard");
-  const icsEvents = month.events.filter((e) => e.origin === "ics");
+  const dashboardEvents = sortEventsByStartDate(
+    month.events.filter((e) => e.origin === "dashboard"),
+  );
+  const icsEvents = sortEventsByStartDate(
+    month.events.filter((e) => e.origin === "ics"),
+  );
 
   const formatDateRange = (start: string, end: string) => {
     if (!start || !end) return "";

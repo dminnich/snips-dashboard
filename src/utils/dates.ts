@@ -1,4 +1,4 @@
-import type { EventStatus } from "@/types";
+import type { EventCard, EventStatus } from "@/types";
 
 export const MONTHS_LEFT = ["January", "February", "March", "April", "May"];
 export const MONTHS_RIGHT = [
@@ -31,4 +31,16 @@ export function getStatusColor(status: EventStatus): string {
     case "paid":
       return "text-emerald-400 border-emerald-500";
   }
+}
+
+export function sortEventsByStartDate<T extends EventCard>(events: T[]): T[] {
+  return [...events].sort((a, b) => {
+    if (!a.startDate && !b.startDate) {
+      return a.groupName.localeCompare(b.groupName);
+    }
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    const cmp = a.startDate.localeCompare(b.startDate);
+    return cmp !== 0 ? cmp : a.groupName.localeCompare(b.groupName);
+  });
 }
