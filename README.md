@@ -265,6 +265,7 @@ Data is sanitized using dompurify
     11. A date in the current-month + 11 months future is shown.
     12. changing the start and end date of a month hides an event
     13. changing the start and end date of a week hides an event
+    14. items are sorted in date order
 12. adding multiple groups or editing multiple groups doesn't have data from the past events. sync refreshes the page
 13. editing an event in a remote calendar shows up
 14. adding an event in a remote calendar shows up
