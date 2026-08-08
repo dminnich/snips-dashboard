@@ -155,16 +155,16 @@ function WeekColumn({
         <span>
           Week {weekNumber}
           {isAdmin && (
-            <span className="ml-1.5 text-[10px] text-(--text-muted)">✏️</span>
+            <span className="ml-1.5 text-[0.625rem] text-(--text-muted)">✏️</span>
           )}
         </span>
         {weekData?.startDate && weekData?.endDate && (
-          <span className="text-[10px] font-normal text-(--text-secondary)">
+          <span className="text-[0.625rem] font-normal text-(--text-secondary)">
             {formatDateRange(weekData.startDate, weekData.endDate)}
           </span>
         )}
         {weekData?.subtitle && (
-          <span className="text-[10px] font-normal text-(--text-secondary)">
+          <span className="text-[0.625rem] font-normal text-(--text-secondary)">
             {weekData.subtitle}
           </span>
         )}
@@ -173,7 +173,7 @@ function WeekColumn({
       <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-1.5">
         {!dbEventsDisabled && (
           <div className="space-y-0.5">
-            <div className="flex items-center gap-1 text-[9px] font-semibold text-(--text-muted) uppercase tracking-wider">
+            <div className="flex items-center gap-1 text-[0.5625rem] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>✏️</span>
               <span>Dashboard Events</span>
             </div>
@@ -202,7 +202,7 @@ function WeekColumn({
                 ))}
               </div>
             ) : (
-              <div className="text-[9px] text-(--text-muted) italic">
+              <div className="text-[0.5625rem] text-(--text-muted) italic">
                 No groups
               </div>
             )}
@@ -211,7 +211,7 @@ function WeekColumn({
 
         {icsEnabled && (
           <div className="space-y-0.5">
-            <div className="flex items-center gap-1 text-[9px] font-semibold text-(--text-muted) uppercase tracking-wider">
+            <div className="flex items-center gap-1 text-[0.5625rem] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>🍎</span>
               <span>Apple Events</span>
             </div>
@@ -240,7 +240,7 @@ function WeekColumn({
                 ))}
               </div>
             ) : (
-              <div className="text-[9px] text-(--text-muted) italic">
+              <div className="text-[0.5625rem] text-(--text-muted) italic">
                 No apple events
               </div>
             )}
@@ -251,12 +251,12 @@ function WeekColumn({
       {weekData?.specialEvents &&
         weekData.specialEvents.replace(/<[^>]*>/g, "").trim() && (
           <div className="border-t border-(--border) px-1.5 pb-1 pt-0.5">
-            <div className="mb-0.5 flex items-center gap-1 text-[9px] font-semibold text-(--text-muted) uppercase tracking-wider">
+            <div className="mb-0.5 flex items-center gap-1 text-[0.5625rem] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>🎆</span>
               <span>Special Events</span>
             </div>
             <div
-              className="text-[9px] text-(--text-muted)"
+              className="text-[0.5625rem] text-(--text-muted)"
               dangerouslySetInnerHTML={{
                 __html: sanitizeHtml(weekData.specialEvents),
               }}

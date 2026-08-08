@@ -43,6 +43,10 @@
   --input-border: #cbd5e1;
 }
 
+html {
+  font-size: clamp(10px, 0.833vw, 16px);
+}
+
 body {
   margin: 0;
   font-family:

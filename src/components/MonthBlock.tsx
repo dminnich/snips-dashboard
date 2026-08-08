@@ -93,17 +93,17 @@ export function MonthBlock({
         <span>
           {month.name}
           {isAdmin && (
-            <span className="ml-1.5 text-[10px] text-(--text-muted)">✏️</span>
+            <span className="ml-1.5 text-[0.625rem] text-(--text-muted)">✏️</span>
           )}
         </span>
         {/* Date range below name, same size as subtitle, muted color */}
         {month.startDate && month.endDate && (
-          <span className="text-[10px] font-normal text-(--text-secondary)">
+          <span className="text-[0.625rem] font-normal text-(--text-secondary)">
             {formatDateRange(month.startDate, month.endDate)}
           </span>
         )}
         {month.subtitle && (
-          <span className="text-[10px] font-normal text-(--text-secondary)">
+          <span className="text-[0.625rem] font-normal text-(--text-secondary)">
             {month.subtitle}
           </span>
         )}
@@ -114,7 +114,7 @@ export function MonthBlock({
         {/* Section 1: Dashboard Events */}
         {!dbEventsDisabled && (
           <div className="space-y-0.5">
-            <div className="flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
+            <div className="flex items-center gap-1 text-[0.625rem] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>✏️</span>
               <span>Dashboard Events</span>
             </div>
@@ -143,7 +143,7 @@ export function MonthBlock({
                 ))}
               </div>
             ) : (
-              <div className="text-[10px] text-(--text-muted) italic">
+              <div className="text-[0.625rem] text-(--text-muted) italic">
                 No groups
               </div>
             )}
@@ -153,7 +153,7 @@ export function MonthBlock({
         {/* Section 2: Apple Events */}
         {icsEnabled && (
           <div className="space-y-0.5">
-            <div className="flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
+            <div className="flex items-center gap-1 text-[0.625rem] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>🍎</span>
               <span>Apple Events</span>
             </div>
@@ -182,7 +182,7 @@ export function MonthBlock({
                 ))}
               </div>
             ) : (
-              <div className="text-[10px] text-(--text-muted) italic">
+              <div className="text-[0.625rem] text-(--text-muted) italic">
                 No apple events
               </div>
             )}
@@ -194,12 +194,12 @@ export function MonthBlock({
       {month.specialEvents &&
         month.specialEvents.replace(/<[^>]*>/g, "").trim() && (
           <div className="border-t border-(--border) px-2 pb-2 pt-1">
-            <div className="mb-0.5 flex items-center gap-1 text-[10px] font-semibold text-(--text-muted) uppercase tracking-wider">
+            <div className="mb-0.5 flex items-center gap-1 text-[0.625rem] font-semibold text-(--text-muted) uppercase tracking-wider">
               <span>🎆</span>
               <span>Special Events</span>
             </div>
             <div
-              className="text-[10px] text-(--text-muted)"
+              className="text-[0.625rem] text-(--text-muted)"
               dangerouslySetInnerHTML={{
                 __html: sanitizeHtml(month.specialEvents),
               }}
