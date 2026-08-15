@@ -17,8 +17,15 @@ function startIcsSync(db) {
     return;
   }
 
-  // Run immediately on startup
-  syncNow(db);
+  // Delay initial sync by 15 seconds to let server startup complete and healthcheck stabilize
+  const initialDelayMs = 15000;
+  console.log(`[${new Date().toISOString()}] ICS sync: initial sync scheduled in ${initialDelayMs / 1000}s`);
+  setTimeout(() => {
+    if (!isShuttingDown) {
+      abortController = new AbortController();
+      syncNow(db, abortController);
+    }
+  }, initialDelayMs);
 
   // Then run on interval
   const intervalMs = (parseInt(ICS_SYNC_MINUTES) || 60) * 60 * 1000;
@@ -33,13 +40,13 @@ function startIcsSync(db) {
 }
 
 async function syncNow(db, controller) {
+  if (isShuttingDown) {
+    return { status: 'shutting_down' };
+  }
+
   if (isSyncing) {
     console.log(`[${new Date().toISOString()}] ICS sync: already in progress, skipping`);
     return { status: 'already_syncing' };
-  }
-
-  if (isShuttingDown) {
-    return { status: 'shutting_down' };
   }
 
   isSyncing = true;
@@ -48,6 +55,9 @@ async function syncNow(db, controller) {
 
   try {
     const response = await fetch(ICS_URL, { signal: controller?.signal });
+    if (isShuttingDown) {
+      return { status: 'shutting_down' };
+    }
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -181,4 +191,8 @@ function getIsShuttingDown() {
   return isShuttingDown;
 }
 
-module.exports = { startIcsSync, syncNow, placeDashboardEvent, shutdown, getIsShuttingDown };
+function getIsSyncing() {
+  return isSyncing;
+}
+
+module.exports = { startIcsSync, syncNow, placeDashboardEvent, shutdown, getIsShuttingDown, getIsSyncing };

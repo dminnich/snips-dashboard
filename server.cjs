@@ -6,7 +6,7 @@ const fs = require('fs')
 const { JSDOM } = require('jsdom')
 const rateLimit = require('express-rate-limit')
 const createDOMPurify = require('dompurify')
-const { startIcsSync, syncNow, placeDashboardEvent, shutdown: icsShutdown, getIsShuttingDown } = require('./sync/icsSync')
+const { startIcsSync, syncNow, placeDashboardEvent, shutdown: icsShutdown, getIsShuttingDown, getIsSyncing } = require('./sync/icsSync')
 
 const window = new JSDOM('').window
 const DOMPurify = createDOMPurify(window)
@@ -900,13 +900,28 @@ function shutdown(signal) {
 
   // Stop accepting new connections
   server.close(() => {
+    // Clear the sync interval
     if (icsCleanup) icsCleanup();
-    db.close();
-    console.log(`[${new Date().toISOString()}] Server closed`);
-    process.exit(0);
+
+    // Wait for any in-progress sync to finish before closing DB
+    const waitForSync = () => {
+      if (getIsSyncing()) {
+        console.log(`[${new Date().toISOString()}] Waiting for ICS sync to finish...`);
+        setTimeout(waitForSync, 100);
+      } else {
+        try {
+          db.close();
+          console.log(`[${new Date().toISOString()}] Server closed`);
+        } catch (err) {
+          console.error(`[${new Date().toISOString()}] Error closing database: ${err.message}`);
+        }
+        process.exit(0);
+      }
+    };
+    waitForSync();
   });
 
-  // Force exit after 10 seconds if ICS sync is still running
+  // Force exit after 10 seconds if graceful shutdown fails
   setTimeout(() => {
     console.log(`[${new Date().toISOString()}] Forcing exit after timeout`);
     process.exit(1);
