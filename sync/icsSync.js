@@ -4,6 +4,12 @@ const crypto = require('crypto');
 const { ICS_SYNC_MINUTES, ICS_URL } = process.env;
 
 let isSyncing = false;
+let isShuttingDown = false;
+let abortController = null;
+
+function getAbortController() {
+  return abortController;
+}
 
 function startIcsSync(db) {
   if (!ICS_URL) {
@@ -13,24 +19,35 @@ function startIcsSync(db) {
 
   // Run immediately on startup
   syncNow(db);
-  
+
   // Then run on interval
   const intervalMs = (parseInt(ICS_SYNC_MINUTES) || 60) * 60 * 1000;
-  setInterval(() => syncNow(db), intervalMs);
+  const intervalId = setInterval(() => {
+    if (!isShuttingDown) {
+      abortController = new AbortController();
+      syncNow(db, abortController);
+    }
+  }, intervalMs);
+
+  return () => clearInterval(intervalId);
 }
 
-async function syncNow(db) {
+async function syncNow(db, controller) {
   if (isSyncing) {
     console.log(`[${new Date().toISOString()}] ICS sync: already in progress, skipping`);
     return { status: 'already_syncing' };
   }
 
+  if (isShuttingDown) {
+    return { status: 'shutting_down' };
+  }
+
   isSyncing = true;
   const syncStart = new Date().toISOString();
   console.log(`[${syncStart}] ICS sync: starting sync from ${ICS_URL}`);
-  
+
   try {
-    const response = await fetch(ICS_URL);
+    const response = await fetch(ICS_URL, { signal: controller?.signal });
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
@@ -153,4 +170,15 @@ function placeDashboardEvent(db, eventId, startDate, endDate) {
   }
 }
 
-module.exports = { startIcsSync, syncNow, placeDashboardEvent };
+function shutdown() {
+  isShuttingDown = true;
+  if (abortController) {
+    abortController.abort();
+  }
+}
+
+function getIsShuttingDown() {
+  return isShuttingDown;
+}
+
+module.exports = { startIcsSync, syncNow, placeDashboardEvent, shutdown, getIsShuttingDown };
